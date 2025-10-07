@@ -43,10 +43,10 @@ describe('Tenants', () => {
   })
 
   it('shows loading state initially', () => {
-    mockFetchTenants.mockImplementation(() => new Promise(() => {})) // Never resolves
-    
+    mockFetchTenants.mockImplementation(() => new Promise(() => { /* Never resolves */ }))
+
     renderWithClient(<Tenants />)
-    
+
     expect(screen.getByText('Loading...')).toBeInTheDocument()
   })
 

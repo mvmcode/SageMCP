@@ -38,22 +38,14 @@ interface OAuthConfigModalProps {
   onConfigSaved?: () => void
 }
 
-export default function OAuthConfigModal({ 
-  isOpen, 
-  onClose, 
-  tenantSlug, 
-  provider, 
+export default function OAuthConfigModal({
+  isOpen,
+  onClose,
+  tenantSlug,
+  provider,
   providerName,
   onConfigSaved
 }: OAuthConfigModalProps) {
-  // Early return if modal is closed to prevent unnecessary renders
-  if (!isOpen) return null
-  
-  console.log('=== OAuth Config Modal Render (OPEN) ===')
-  console.log('tenantSlug:', tenantSlug)
-  console.log('provider:', provider)
-  console.log('providerName:', providerName)
-  
   const queryClient = useQueryClient()
 
   const {
@@ -88,10 +80,10 @@ export default function OAuthConfigModal({
       // Invalidate and wait for refetch to complete
       await queryClient.invalidateQueries({ queryKey: ['oauth-configs', tenantSlug] })
       await queryClient.invalidateQueries({ queryKey: ['oauth-providers'] })
-      
+
       toast.success(`${providerName} OAuth configuration saved successfully`)
       onConfigSaved?.()
-      
+
       // Small delay to ensure parent components have time to update
       setTimeout(() => {
         handleClose()
@@ -114,6 +106,14 @@ export default function OAuthConfigModal({
       reset()
     }
   }, [isOpen, reset])
+
+  // Early return if modal is closed to prevent unnecessary renders
+  if (!isOpen) return null
+
+  console.log('=== OAuth Config Modal Render (OPEN) ===')
+  console.log('tenantSlug:', tenantSlug)
+  console.log('provider:', provider)
+  console.log('providerName:', providerName)
 
   const onSubmit = (data: OAuthConfigFormData) => {
     console.log('=== OAuth Config Form Submit ===')

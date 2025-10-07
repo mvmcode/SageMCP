@@ -9,6 +9,12 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  actions: read
+
 jobs:
   dependency-scan:
     name: Dependency Vulnerability Scan
@@ -46,7 +52,7 @@ jobs:
       run: npm audit --audit-level=moderate
 
     - name: Upload dependency scan results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: dependency-scan-results
@@ -80,14 +86,14 @@ jobs:
         output: 'frontend-trivy-results.sarif'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'backend-trivy-results.sarif'
         category: 'backend-container'
 
     - name: Upload Frontend Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'frontend-trivy-results.sarif'
@@ -111,7 +117,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         queries: security-extended,security-and-quality
@@ -142,7 +148,7 @@ jobs:
       run: npm ci
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
 
@@ -202,7 +208,7 @@ jobs:
         license-checker --markdown --out ../frontend-licenses.md
 
     - name: Upload license reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: license-reports
         path: |
@@ -221,13 +227,13 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Download scan results
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: dependency-scan-results
         path: ./scan-results
 
     - name: Download license reports
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: license-reports
         path: ./license-reports
@@ -283,7 +289,7 @@ jobs:
         echo "- Ensure all dependencies use compatible licenses" >> security-summary.md
 
     - name: Upload security summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-summary
         path: security-summary.md
