@@ -135,4 +135,10 @@ export const healthApi = {
   check: () => api.get('/health'),
 }
 
+// Legacy function exports for tests
+export const fetchTenants = () => tenantsApi.list()
+export const createTenant = (data: TenantCreate) => tenantsApi.create(data)
+export const fetchConnectors = (tenantSlug: string) => connectorsApi.list(tenantSlug)
+export const createConnector = (tenantSlug: string, data: ConnectorCreate) => connectorsApi.create(tenantSlug, data)
+
 export default api

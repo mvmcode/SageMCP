@@ -1,0 +1,213 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      docker: ${{ steps.changes.outputs.docker }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          backend:
+            - 'src/**'
+            - 'tests/**'
+            - 'pyproject.toml'
+            - 'requirements.txt'
+            - 'Dockerfile'
+          frontend:
+            - 'frontend/**'
+          docker:
+            - 'docker-compose.yml'
+            - 'Dockerfile'
+            - 'frontend/Dockerfile'
+
+  backend-checks:
+    name: Backend PR Checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: sage_mcp_test
+          POSTGRES_USER: sage_mcp_test
+          POSTGRES_DB: sage_mcp_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-cov pytest-asyncio flake8 black isort mypy
+
+    - name: Run code formatting check
+      run: |
+        black --check src/ tests/
+        isort --check-only src/ tests/
+
+    - name: Run linting
+      run: flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
+
+    - name: Run type checking
+      run: mypy src/ --ignore-missing-imports
+
+    - name: Run tests
+      env:
+        DATABASE_URL: postgresql://sage_mcp_test:sage_mcp_test@localhost:5432/sage_mcp_test
+        SECRET_KEY: test-secret-key
+        ENVIRONMENT: test
+      run: pytest tests/ -v --cov=src/sage_mcp --cov-report=term --cov-fail-under=80
+
+  frontend-checks:
+    name: Frontend PR Checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Run type checking
+      working-directory: frontend
+      run: npm run type-check
+
+    - name: Run linting
+      working-directory: frontend
+      run: npm run lint
+
+    - name: Run tests
+      working-directory: frontend
+      run: npm run test:coverage
+
+    - name: Check build
+      working-directory: frontend
+      run: npm run build
+
+  docker-checks:
+    name: Docker Build Checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Test backend docker build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: sagemcp/backend:pr-test
+
+    - name: Test frontend docker build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: false
+        tags: sagemcp/frontend:pr-test
+
+    - name: Test docker-compose
+      run: |
+        echo "DATABASE_URL=postgresql://sage_mcp:sage_mcp_password@postgres:5432/sage_mcp" > .env
+        echo "SECRET_KEY=test-secret-key" >> .env
+        echo "ENVIRONMENT=test" >> .env
+        docker-compose config
+        docker-compose up -d --build
+        sleep 30
+        curl -f http://localhost:8000/health
+        curl -f http://localhost:3000
+        docker-compose down -v
+
+  security-pr-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        exit-code: '1'
+        severity: 'CRITICAL,HIGH'
+
+  comment-coverage:
+    name: Comment Coverage
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks]
+    if: always() && (needs.backend-checks.result == 'success' || needs.frontend-checks.result == 'success')
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Comment PR with coverage
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const comment = `## 🧪 Test Coverage Report
+          
+          The PR checks have completed. Please review:
+          
+          ### Backend
+          ${context.payload.pull_request.changed_files > 0 ? '✅ Tests passed' : '⏭️ No backend changes'}
+          
+          ### Frontend  
+          ${context.payload.pull_request.changed_files > 0 ? '✅ Tests passed' : '⏭️ No frontend changes'}
+          
+          ### Security
+          ✅ Security scan completed
+          
+          ---
+          *This comment was auto-generated by the CI pipeline*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

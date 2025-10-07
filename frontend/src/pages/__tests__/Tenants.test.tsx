@@ -11,7 +11,6 @@ vi.mock('../../utils/api', () => ({
 }))
 
 const mockFetchTenants = vi.mocked(api.fetchTenants)
-const mockCreateTenant = vi.mocked(api.createTenant)
 
 describe('Tenants', () => {
   let queryClient: QueryClient
@@ -35,7 +34,7 @@ describe('Tenants', () => {
   }
 
   it('renders tenants page with title', () => {
-    mockFetchTenants.mockResolvedValue([])
+    mockFetchTenants.mockResolvedValue({ data: [] } as any)
     
     renderWithClient(<Tenants />)
     
@@ -75,7 +74,7 @@ describe('Tenants', () => {
       },
     ]
     
-    mockFetchTenants.mockResolvedValue(mockTenants)
+    mockFetchTenants.mockResolvedValue({ data: mockTenants } as any)
     
     renderWithClient(<Tenants />)
     
@@ -86,7 +85,7 @@ describe('Tenants', () => {
   })
 
   it('shows empty state when no tenants', async () => {
-    mockFetchTenants.mockResolvedValue([])
+    mockFetchTenants.mockResolvedValue({ data: [] } as any)
     
     renderWithClient(<Tenants />)
     
@@ -106,7 +105,7 @@ describe('Tenants', () => {
   })
 
   it('opens create tenant modal when button clicked', async () => {
-    mockFetchTenants.mockResolvedValue([])
+    mockFetchTenants.mockResolvedValue({ data: [] } as any)
     
     renderWithClient(<Tenants />)
     

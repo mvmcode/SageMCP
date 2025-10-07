@@ -1,0 +1,78 @@
+version: 2
+updates:
+  # Enable version updates for Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    reviewers:
+      - "dependabot[bot]"
+    open-pull-requests-limit: 5
+    target-branch: "main"
+
+  # Enable version updates for npm dependencies (frontend)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    reviewers:
+      - "dependabot[bot]"
+    open-pull-requests-limit: 5
+    target-branch: "main"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    reviewers:
+      - "dependabot[bot]"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    reviewers:
+      - "dependabot[bot]"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+
+  # Enable version updates for Docker (frontend)
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    reviewers:
+      - "dependabot[bot]"
+    open-pull-requests-limit: 3
+    target-branch: "main"
