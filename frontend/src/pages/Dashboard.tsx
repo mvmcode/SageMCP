@@ -1,0 +1,259 @@
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { 
+  Building2, 
+  Plug, 
+  Activity, 
+  Users, 
+  TrendingUp, 
+  AlertCircle,
+  CheckCircle,
+  Clock
+} from 'lucide-react'
+import { tenantsApi, healthApi } from '@/utils/api'
+import { cn } from '@/utils/cn'
+
+const StatCard = ({ 
+  title, 
+  value, 
+  change, 
+  icon: Icon, 
+  trend = 'up' 
+}: { 
+  title: string
+  value: string | number
+  change?: string
+  icon: React.ElementType
+  trend?: 'up' | 'down' | 'neutral'
+}) => (
+  <div className="card">
+    <div className="card-content">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
+          {change && (
+            <p className={cn(
+              'text-xs flex items-center mt-1',
+              trend === 'up' ? 'text-success-600' : 
+              trend === 'down' ? 'text-error-600' : 'text-gray-500'
+            )}>
+              <TrendingUp className="h-3 w-3 mr-1" />
+              {change}
+            </p>
+          )}
+        </div>
+        <div className="p-3 bg-primary-50 rounded-lg">
+          <Icon className="h-6 w-6 text-primary-600" />
+        </div>
+      </div>
+    </div>
+  </div>
+)
+
+const ActivityItem = ({ 
+  message, 
+  time, 
+  status 
+}: { 
+  type: string
+  message: string
+  time: string
+  status: 'success' | 'error' | 'warning' | 'info'
+}) => {
+  const statusIcons = {
+    success: CheckCircle,
+    error: AlertCircle,
+    warning: AlertCircle,
+    info: Clock
+  }
+  
+  const statusColors = {
+    success: 'text-success-500',
+    error: 'text-error-500',
+    warning: 'text-warning-500',
+    info: 'text-primary-500'
+  }
+  
+  const Icon = statusIcons[status]
+  
+  return (
+    <div className="flex items-start space-x-3 py-3">
+      <div className={cn('mt-0.5', statusColors[status])}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-gray-900">{message}</p>
+        <p className="text-xs text-gray-500 mt-1">{time}</p>
+      </div>
+    </div>
+  )
+}
+
+export default function Dashboard() {
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: () => tenantsApi.list().then(res => res.data)
+  })
+  
+  const { data: healthStatus } = useQuery({
+    queryKey: ['health'],
+    queryFn: () => healthApi.check().then(res => res.data),
+    refetchInterval: 30000 // Refetch every 30 seconds
+  })
+
+  const activeTenants = tenants.filter(t => t.is_active).length
+  const totalTenants = tenants.length
+
+  // Mock data for demo purposes
+  const mockActivities = [
+    {
+      type: 'tenant',
+      message: 'New tenant "mani" was created',
+      time: '2 hours ago',
+      status: 'success' as const
+    },
+    {
+      type: 'connector',
+      message: 'GitHub connector enabled for tenant "mani"',
+      time: '3 hours ago',
+      status: 'success' as const
+    },
+    {
+      type: 'mcp',
+      message: 'MCP protocol test completed successfully',
+      time: '1 day ago',
+      status: 'success' as const
+    }
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600">Overview of your Sage MCP platform</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Total Tenants"
+          value={totalTenants}
+          change="+12% from last month"
+          icon={Building2}
+        />
+        <StatCard
+          title="Active Tenants"
+          value={activeTenants}
+          change="+8% from last month"
+          icon={Users}
+        />
+        <StatCard
+          title="Total Connectors"
+          value="12"
+          change="+3 new this week"
+          icon={Plug}
+        />
+        <StatCard
+          title="System Health"
+          value={healthStatus?.status === 'healthy' ? 'Healthy' : 'Issues'}
+          icon={Activity}
+          trend={healthStatus?.status === 'healthy' ? 'up' : 'down'}
+        />
+      </div>
+
+      {/* Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Activity */}
+        <div className="lg:col-span-2">
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+            </div>
+            <div className="card-content">
+              <div className="space-y-1">
+                {mockActivities.map((activity, index) => (
+                  <ActivityItem key={index} {...activity} />
+                ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <Link 
+                  to="/activity" 
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  View all activity →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+            </div>
+            <div className="card-content space-y-3">
+              <Link
+                to="/tenants"
+                className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+              >
+                <Building2 className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900">Manage Tenants</p>
+                  <p className="text-xs text-gray-500">Create and configure tenants</p>
+                </div>
+              </Link>
+              
+              <Link
+                to="/connectors"
+                className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+              >
+                <Plug className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900">Setup Connectors</p>
+                  <p className="text-xs text-gray-500">Configure integrations</p>
+                </div>
+              </Link>
+              
+              <Link
+                to="/mcp-test"
+                className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+              >
+                <Activity className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900">Test MCP Protocol</p>
+                  <p className="text-xs text-gray-500">Debug and test connections</p>
+                </div>
+              </Link>
+            </div>
+          </div>
+
+          {/* System Status */}
+          <div className="card mt-6">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-gray-900">System Status</h3>
+            </div>
+            <div className="card-content space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">API Server</span>
+                <span className="status-active">Healthy</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Database</span>
+                <span className="status-active">Connected</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Redis Cache</span>
+                <span className="status-active">Online</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

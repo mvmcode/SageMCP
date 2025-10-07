@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sage-mcp-postgres
+    environment:
+      POSTGRES_DB: sage_mcp
+      POSTGRES_USER: sage_mcp
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sage_mcp -d sage_mcp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  # Main application
+  app:
+    build: .
+    container_name: sage-mcp-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DATABASE_URL=postgresql://sage_mcp:password@postgres:5432/sage_mcp
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - BASE_URL=http://localhost:8000
+      # OAuth settings (set these with your actual values)
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - GITLAB_CLIENT_ID=${GITLAB_CLIENT_ID:-}
+      - GITLAB_CLIENT_SECRET=${GITLAB_CLIENT_SECRET:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
+    command: ["uvicorn", "sage_mcp.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+
+  # Frontend React application
+  frontend:
+    build: ./frontend
+    container_name: sage-mcp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - app
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    restart: unless-stopped
+
+  # Adminer for database management (optional)
+  adminer:
+    image: adminer:latest
+    container_name: sage-mcp-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
