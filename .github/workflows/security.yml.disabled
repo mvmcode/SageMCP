@@ -1,0 +1,310 @@
+name: Security & Dependencies
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install safety
+      run: pip install safety
+
+    - name: Scan Python dependencies
+      run: |
+        pip install -r requirements.txt
+        safety check --json --output safety-report.json || echo "Safety check completed with warnings"
+
+    - name: Setup Node.js for frontend scan
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Scan frontend dependencies
+      working-directory: frontend
+      run: npm audit --audit-level=moderate
+
+    - name: Upload dependency scan results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: dependency-scan-results
+        path: safety-report.json
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build backend image for scanning
+      run: docker build -t sagemcp/backend:scan .
+
+    - name: Build frontend image for scanning
+      run: docker build -t sagemcp/frontend:scan ./frontend
+
+    - name: Run Trivy vulnerability scanner on backend
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'sagemcp/backend:scan'
+        format: 'sarif'
+        output: 'backend-trivy-results.sarif'
+
+    - name: Run Trivy vulnerability scanner on frontend
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'sagemcp/frontend:scan'
+        format: 'sarif'
+        output: 'frontend-trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'backend-trivy-results.sarif'
+        category: 'backend-container'
+
+    - name: Upload Frontend Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'frontend-trivy-results.sarif'
+        category: 'frontend-container'
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python', 'javascript' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended,security-and-quality
+
+    - name: Setup Python for CodeQL
+      if: matrix.language == 'python'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies for CodeQL
+      if: matrix.language == 'python'
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Setup Node.js for CodeQL
+      if: matrix.language == 'javascript'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies for CodeQL
+      if: matrix.language == 'javascript'
+      working-directory: frontend
+      run: npm ci
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: TruffleHog OSS
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install pip-licenses
+      run: pip install pip-licenses
+
+    - name: Install project dependencies
+      run: pip install -e .
+
+    - name: Check Python licenses
+      run: |
+        pip-licenses --format=json --output-file=python-licenses.json
+        pip-licenses --format=markdown --output-file=python-licenses.md
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install license-checker
+      run: npm install -g license-checker
+
+    - name: Check frontend licenses
+      working-directory: frontend
+      run: |
+        npm ci
+        license-checker --json --out ../frontend-licenses.json
+        license-checker --markdown --out ../frontend-licenses.md
+
+    - name: Upload license reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: license-reports
+        path: |
+          python-licenses.json
+          python-licenses.md
+          frontend-licenses.json
+          frontend-licenses.md
+
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, container-scan, secret-scan, license-check]
+    if: always()
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download scan results
+      uses: actions/download-artifact@v4
+      with:
+        name: dependency-scan-results
+        path: ./scan-results
+
+    - name: Download license reports
+      uses: actions/download-artifact@v4
+      with:
+        name: license-reports
+        path: ./license-reports
+
+    - name: Generate security summary
+      run: |
+        echo "# 🔒 Security Scan Summary" > security-summary.md
+        echo "" >> security-summary.md
+        echo "**Scan Date:** $(date)" >> security-summary.md
+        echo "**Repository:** ${{ github.repository }}" >> security-summary.md
+        echo "**Branch:** ${{ github.ref_name }}" >> security-summary.md
+        echo "" >> security-summary.md
+        
+        echo "## 📊 Scan Results" >> security-summary.md
+        echo "" >> security-summary.md
+        echo "| Component | Status | Details |" >> security-summary.md
+        echo "|-----------|--------|---------|" >> security-summary.md
+        
+        # Check if dependency scan completed
+        if [ "${{ needs.dependency-scan.result }}" = "success" ]; then
+          echo "| Dependencies | ✅ Passed | No critical vulnerabilities |" >> security-summary.md
+        else
+          echo "| Dependencies | ❌ Failed | Review required |" >> security-summary.md
+        fi
+        
+        # Check container scan
+        if [ "${{ needs.container-scan.result }}" = "success" ]; then
+          echo "| Containers | ✅ Passed | No critical vulnerabilities |" >> security-summary.md
+        else
+          echo "| Containers | ❌ Failed | Review required |" >> security-summary.md
+        fi
+        
+        # Check secret scan
+        if [ "${{ needs.secret-scan.result }}" = "success" ]; then
+          echo "| Secrets | ✅ Passed | No secrets detected |" >> security-summary.md
+        else
+          echo "| Secrets | ⚠️ Warning | Potential secrets found |" >> security-summary.md
+        fi
+        
+        # Check license compliance
+        if [ "${{ needs.license-check.result }}" = "success" ]; then
+          echo "| Licenses | ✅ Passed | All licenses compliant |" >> security-summary.md
+        else
+          echo "| Licenses | ⚠️ Warning | Review license compliance |" >> security-summary.md
+        fi
+        
+        echo "" >> security-summary.md
+        echo "## 🔍 Recommendations" >> security-summary.md
+        echo "" >> security-summary.md
+        echo "- Regularly update dependencies to latest secure versions" >> security-summary.md
+        echo "- Monitor security advisories for used packages" >> security-summary.md
+        echo "- Review and rotate secrets regularly" >> security-summary.md
+        echo "- Ensure all dependencies use compatible licenses" >> security-summary.md
+
+    - name: Upload security summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-summary
+        path: security-summary.md
+
+    - name: Comment security summary on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('security-summary.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });

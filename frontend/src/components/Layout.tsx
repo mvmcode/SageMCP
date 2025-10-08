@@ -18,7 +18,11 @@ const navigation = [
   { name: 'MCP Testing', href: '/mcp-test', icon: Settings },
 ]
 
-export default function Layout() {
+interface LayoutProps {
+  children?: React.ReactNode
+}
+
+export default function Layout({ children }: LayoutProps = {}) {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
 
@@ -42,7 +46,7 @@ export default function Layout() {
               <X className="h-6 w-6 text-gray-400" />
             </button>
           </div>
-          <nav className="mt-8">
+          <nav className="mt-8" role="navigation">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
               return (
@@ -77,7 +81,7 @@ export default function Layout() {
               <span className="text-xl font-semibold text-gray-900">Sage MCP</span>
             </Link>
           </div>
-          <nav className="mt-8 flex-1">
+          <nav className="mt-8 flex-1" role="navigation">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
               return (
@@ -133,7 +137,7 @@ export default function Layout() {
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          {children || <Outlet />}
         </main>
       </div>
     </div>

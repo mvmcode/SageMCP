@@ -2,75 +2,143 @@
 
 import pytest
 import asyncio
+import os
 from unittest.mock import AsyncMock, Mock
-from typing import AsyncGenerator, Generator
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+# Set test environment variables BEFORE importing the app
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["ENVIRONMENT"] = "test"
+
 from sage_mcp.main import app
-from sage_mcp.database.connection import get_db_context
+from sage_mcp.database.connection import get_db_session, db_manager
 from sage_mcp.models.base import Base
 from sage_mcp.models.tenant import Tenant
 from sage_mcp.models.connector import Connector, ConnectorType
 from sage_mcp.models.oauth_credential import OAuthCredential
 
 
-# Test database URL (in-memory SQLite)
+# Always use SQLite for tests to avoid PostgreSQL driver dependencies
 TEST_DATABASE_URL = "sqlite:///:memory:"
+TEST_ASYNC_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-# Create test engine
+# Create test engine with SQLite-specific configuration (synchronous for unit tests)
 test_engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
+    echo=False,
 )
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
+# Create async test engine for integration tests
+test_async_engine = create_async_engine(
+    TEST_ASYNC_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+    echo=False,
+)
+
+TestingAsyncSessionLocal = async_sessionmaker(
+    bind=test_async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+def event_loop():
     """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
     yield loop
     loop.close()
 
 
-@pytest.fixture
-async def db_session():
-    """Create a test database session."""
-    # Create tables
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database(event_loop):
+    """Create tables before tests and drop them after."""
+    # Create all tables for sync engine
     Base.metadata.create_all(bind=test_engine)
-    
+
+    # Create all tables for async engine
+    async def create_async_tables():
+        async with test_async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    event_loop.run_until_complete(create_async_tables())
+
+    yield
+
+    # Drop all tables after all tests
+    async def drop_async_tables():
+        async with test_async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await test_async_engine.dispose()
+
+    Base.metadata.drop_all(bind=test_engine)
+    event_loop.run_until_complete(drop_async_tables())
+
+
+@pytest.fixture(autouse=True)
+def cleanup_db():
+    """Clean up database between tests."""
+    yield
+    # Clean up all data after each test
+    session = TestingSessionLocal()
+    try:
+        # Delete in correct order to avoid foreign key constraints
+        session.query(OAuthCredential).delete()
+        session.query(Connector).delete()
+        session.query(Tenant).delete()
+        session.commit()
+    except Exception:
+        session.rollback()
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def db_session():
+    """Create a test database session."""
     session = TestingSessionLocal()
     try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
-        # Drop tables after test
-        Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture
-def client(db_session) -> TestClient:
+def client() -> TestClient:
     """Create a test client with database override."""
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+    async def override_get_db_session():
+        async with TestingAsyncSessionLocal() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
-    app.dependency_overrides[get_db_context] = override_get_db
+    app.dependency_overrides[get_db_session] = override_get_db_session
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-async def sample_tenant(db_session) -> Tenant:
+def sample_tenant(db_session) -> Tenant:
     """Create a sample tenant for testing."""
     tenant = Tenant(
         slug="test-tenant",
@@ -86,7 +154,7 @@ async def sample_tenant(db_session) -> Tenant:
 
 
 @pytest.fixture
-async def sample_connector(db_session, sample_tenant) -> Connector:
+def sample_connector(db_session, sample_tenant) -> Connector:
     """Create a sample connector for testing."""
     connector = Connector(
         name="Test GitHub Connector",
@@ -103,7 +171,7 @@ async def sample_connector(db_session, sample_tenant) -> Connector:
 
 
 @pytest.fixture
-async def sample_oauth_credential(db_session, sample_tenant) -> OAuthCredential:
+def sample_oauth_credential(db_session, sample_tenant) -> OAuthCredential:
     """Create a sample OAuth credential for testing."""
     credential = OAuthCredential(
         tenant_id=sample_tenant.id,

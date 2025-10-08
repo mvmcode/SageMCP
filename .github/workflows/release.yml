@@ -1,0 +1,200 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the latest two tags
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "")
+        
+        echo "Generating release notes from $PREVIOUS_TAG to $CURRENT_TAG"
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"* %s (%h)" --no-merges)
+        else
+          CHANGELOG=$(git log --pretty=format:"* %s (%h)" --no-merges $PREVIOUS_TAG..$CURRENT_TAG)
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        ## 🚀 What's New in $CURRENT_TAG
+        
+        ### 📋 Changes
+        
+        $CHANGELOG
+        
+        ### 🐳 Docker Images
+        
+        - **Backend**: \`ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}\`
+        - **Frontend**: \`ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}\`
+        
+        ### 🔧 Installation
+        
+        #### Using Docker Compose
+        \`\`\`bash
+        git clone https://github.com/${{ github.repository }}.git
+        cd $(basename ${{ github.repository }})
+        git checkout $CURRENT_TAG
+        make setup
+        \`\`\`
+        
+        #### Using Released Images
+        \`\`\`bash
+        # Pull the images
+        docker pull ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}
+        docker pull ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}
+        \`\`\`
+        
+        ### 📚 Documentation
+        
+        - [Getting Started](https://github.com/${{ github.repository }}#-getting-started)
+        - [API Documentation](http://localhost:8000/docs) (when running locally)
+        - [Configuration Guide](https://github.com/${{ github.repository }}#-configuration)
+        
+        ### ✅ Verified Components
+        
+        - ✅ Backend API server
+        - ✅ Frontend React application  
+        - ✅ PostgreSQL database integration
+        - ✅ Docker containerization
+        - ✅ MCP protocol compliance
+        - ✅ OAuth integration (GitHub)
+        - ✅ Multi-tenant architecture
+        
+        ---
+        
+        **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$CURRENT_TAG
+        EOF
+
+    - name: Build and push release images
+      run: |
+        # Build backend image
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --tag ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }} \
+          --tag ghcr.io/${{ github.repository }}/backend:latest \
+          --push \
+          .
+        
+        # Build frontend image
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --tag ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }} \
+          --tag ghcr.io/${{ github.repository }}/frontend:latest \
+          --push \
+          ./frontend
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ steps.version.outputs.VERSION }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ contains(github.ref_name, '-') }}
+        generate_release_notes: true
+        files: |
+          docker-compose.yml
+          Makefile
+          README.md
+
+  update-helm-charts:
+    name: Update Helm Charts
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: "!contains(github.ref_name, '-')" # Only for stable releases
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Update Helm chart version
+      run: |
+        if [ -f "helm/Chart.yaml" ]; then
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.VERSION }}/" helm/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: ${{ steps.version.outputs.VERSION }}/" helm/Chart.yaml
+          
+          # Update image tags in values.yaml if it exists
+          if [ -f "helm/values.yaml" ]; then
+            sed -i "s/tag:.*/tag: ${{ steps.version.outputs.VERSION }}/" helm/values.yaml
+          fi
+          
+          echo "Updated Helm charts to version ${{ steps.version.outputs.VERSION }}"
+        else
+          echo "No Helm charts found, skipping update"
+        fi
+
+    - name: Commit and push Helm chart updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if git diff --exit-code; then
+          echo "No changes to commit"
+        else
+          git add helm/
+          git commit -m "chore: update Helm charts to version ${{ steps.version.outputs.VERSION }}"
+          git push origin HEAD:main
+        fi
+
+  notify-deployment:
+    name: Notify Deployment
+    runs-on: ubuntu-latest
+    needs: [create-release, update-helm-charts]
+    if: always()
+
+    steps:
+    - name: Extract version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Deployment notification
+      run: |
+        echo "🎉 Release ${{ steps.version.outputs.VERSION }} has been created!"
+        echo "📦 Images are available at:"
+        echo "   - ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}"
+        echo "   - ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}"
+        echo ""
+        echo "🚀 Ready for deployment to production!"
+        
+        # Here you could add notifications to Slack, Discord, email, etc.
+        # Or trigger deployment workflows

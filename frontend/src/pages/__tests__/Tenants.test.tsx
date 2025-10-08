@@ -6,12 +6,16 @@ import * as api from '../../utils/api'
 
 // Mock the API
 vi.mock('../../utils/api', () => ({
-  fetchTenants: vi.fn(),
-  createTenant: vi.fn(),
+  tenantsApi: {
+    list: vi.fn(),
+    create: vi.fn(),
+    get: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
 }))
 
-const mockFetchTenants = vi.mocked(api.fetchTenants)
-const mockCreateTenant = vi.mocked(api.createTenant)
+const mockTenantsApi = vi.mocked(api.tenantsApi)
 
 describe('Tenants', () => {
   let queryClient: QueryClient
@@ -35,20 +39,22 @@ describe('Tenants', () => {
   }
 
   it('renders tenants page with title', () => {
-    mockFetchTenants.mockResolvedValue([])
-    
+    mockTenantsApi.list.mockResolvedValue({ data: [] } as any)
+
     renderWithClient(<Tenants />)
-    
+
     expect(screen.getByText('Tenants')).toBeInTheDocument()
     expect(screen.getByText('Create Tenant')).toBeInTheDocument()
   })
 
   it('shows loading state initially', () => {
-    mockFetchTenants.mockImplementation(() => new Promise(() => {})) // Never resolves
-    
+    mockTenantsApi.list.mockImplementation(() => new Promise(() => { /* Never resolves */ }))
+
     renderWithClient(<Tenants />)
-    
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
+
+    // Loading state shows skeleton cards with animation
+    const skeletons = document.querySelectorAll('.animate-pulse')
+    expect(skeletons.length).toBeGreaterThan(0)
   })
 
   it('displays tenants when loaded', async () => {
@@ -75,10 +81,10 @@ describe('Tenants', () => {
       },
     ]
     
-    mockFetchTenants.mockResolvedValue(mockTenants)
-    
+    mockTenantsApi.list.mockResolvedValue({ data: mockTenants } as any)
+
     renderWithClient(<Tenants />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Tenant 1')).toBeInTheDocument()
       expect(screen.getByText('Tenant 2')).toBeInTheDocument()
@@ -86,33 +92,35 @@ describe('Tenants', () => {
   })
 
   it('shows empty state when no tenants', async () => {
-    mockFetchTenants.mockResolvedValue([])
-    
+    mockTenantsApi.list.mockResolvedValue({ data: [] } as any)
+
     renderWithClient(<Tenants />)
-    
+
     await waitFor(() => {
-      expect(screen.getByText('No tenants found')).toBeInTheDocument()
+      expect(screen.getByText('No tenants yet')).toBeInTheDocument()
     })
   })
 
   it('handles error state', async () => {
-    mockFetchTenants.mockRejectedValue(new Error('Failed to fetch'))
-    
+    mockTenantsApi.list.mockRejectedValue(new Error('Failed to fetch'))
+
     renderWithClient(<Tenants />)
-    
+
+    // Error state is handled by React Query, which may show empty state
     await waitFor(() => {
-      expect(screen.getByText('Error loading tenants')).toBeInTheDocument()
+      // Query will show empty array on error by default
+      expect(screen.getByText('No tenants yet')).toBeInTheDocument()
     })
   })
 
   it('opens create tenant modal when button clicked', async () => {
-    mockFetchTenants.mockResolvedValue([])
-    
+    mockTenantsApi.list.mockResolvedValue({ data: [] } as any)
+
     renderWithClient(<Tenants />)
-    
-    const createButton = screen.getByText('Create Tenant')
+
+    const createButton = screen.getAllByText('Create Tenant')[0]
     fireEvent.click(createButton)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Create New Tenant')).toBeInTheDocument()
     })

@@ -8,7 +8,7 @@ from .connector import Connector, ConnectorType
 
 __all__ = [
     "Base",
-    "Tenant", 
+    "Tenant",
     "OAuthCredential",
     "OAuthConfig",
     "Connector",

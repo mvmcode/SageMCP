@@ -1,0 +1,223 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.check.outputs.backend }}
+      frontend: ${{ steps.check.outputs.frontend }}
+      docker: ${{ steps.check.outputs.docker }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check for changes using git diff
+      id: check
+      run: |
+        # Get the base branch for comparison
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        else
+          BASE_SHA="HEAD~1"
+        fi
+        
+        echo "Comparing against: $BASE_SHA"
+        
+        # Check for backend changes
+        if git diff --name-only $BASE_SHA HEAD | grep -E '^(src/|tests/|pyproject\.toml|requirements\.txt|Dockerfile)'; then
+          echo "backend=true" >> $GITHUB_OUTPUT
+          echo "Backend changes detected"
+        else
+          echo "backend=false" >> $GITHUB_OUTPUT
+          echo "No backend changes"
+        fi
+        
+        # Check for frontend changes
+        if git diff --name-only $BASE_SHA HEAD | grep -E '^frontend/'; then
+          echo "frontend=true" >> $GITHUB_OUTPUT
+          echo "Frontend changes detected"
+        else
+          echo "frontend=false" >> $GITHUB_OUTPUT
+          echo "No frontend changes"
+        fi
+        
+        # Check for docker changes
+        if git diff --name-only $BASE_SHA HEAD | grep -E '^(docker-compose\.yml|Dockerfile|frontend/Dockerfile)'; then
+          echo "docker=true" >> $GITHUB_OUTPUT
+          echo "Docker changes detected"
+        else
+          echo "docker=false" >> $GITHUB_OUTPUT
+          echo "No docker changes"
+        fi
+
+  backend-checks:
+    name: Backend PR Checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run linting
+      run: flake8 src/ --max-line-length=100 --extend-ignore=E203,W503,E501,W293,W291,W292,F401
+
+    - name: Run tests
+      env:
+        SECRET_KEY: test-secret-key
+      run: pytest tests/ -v --cov=src/sage_mcp --cov-report=term --cov-fail-under=35
+
+  frontend-checks:
+    name: Frontend PR Checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Run type checking
+      working-directory: frontend
+      run: npm run type-check
+
+    - name: Run linting
+      working-directory: frontend
+      run: npm run lint
+
+    - name: Run tests
+      working-directory: frontend
+      run: npm run test:coverage -- --run --reporter=verbose
+
+    - name: Check build
+      working-directory: frontend
+      run: npm run build
+
+  docker-checks:
+    name: Docker Build Checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Test backend docker build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: sagemcp/backend:pr-test
+
+    - name: Test frontend docker build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: false
+        tags: sagemcp/frontend:pr-test
+
+    - name: Test docker-compose
+      run: |
+        echo "DATABASE_URL=postgresql://sage_mcp:sage_mcp_password@postgres:5432/sage_mcp" > .env
+        echo "SECRET_KEY=test-secret-key" >> .env
+        echo "ENVIRONMENT=test" >> .env
+        docker-compose config
+        docker-compose up -d --build
+        sleep 30
+        curl -f http://localhost:8000/health
+        curl -f http://localhost:3000
+        docker-compose down -v
+
+  comment-coverage:
+    name: Comment Coverage
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks]
+    if: always() && (needs.backend-checks.result == 'success' || needs.frontend-checks.result == 'success')
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Comment PR with coverage
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const backendResult = '${{ needs.backend-checks.result }}';
+          const frontendResult = '${{ needs.frontend-checks.result }}';
+          
+          const getStatusIcon = (result) => {
+            switch(result) {
+              case 'success': return '✅';
+              case 'failure': return '❌';
+              case 'skipped': return '⏭️';
+              default: return '⚠️';
+            }
+          };
+          
+          const getStatusText = (result) => {
+            switch(result) {
+              case 'success': return 'Tests passed';
+              case 'failure': return 'Tests failed';
+              case 'skipped': return 'No changes detected';
+              default: return 'Status unknown';
+            }
+          };
+          
+          const comment = `## 🧪 PR Check Results
+          
+          | Component | Status | Result |
+          |-----------|--------|---------|
+          | Backend | ${getStatusIcon(backendResult)} | ${getStatusText(backendResult)} |
+          | Frontend | ${getStatusIcon(frontendResult)} | ${getStatusText(frontendResult)} |
+          
+          ${backendResult === 'failure' || frontendResult === 'failure' 
+            ? '⚠️ **Action Required**: Some checks failed. Please review the logs and fix the issues.'
+            : '🎉 **All checks passed!** This PR is ready for review.'
+          }
+          
+          ---
+          *Auto-generated by CI pipeline*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
