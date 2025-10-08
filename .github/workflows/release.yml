@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
 
@@ -118,7 +118,7 @@ jobs:
           ./frontend
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         name: Release ${{ steps.version.outputs.VERSION }}
@@ -139,7 +139,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
