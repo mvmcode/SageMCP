@@ -15,21 +15,6 @@ jobs:
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: sage_mcp_test
-          POSTGRES_USER: sage_mcp_test
-          POSTGRES_DB: sage_mcp_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
 
     steps:
     - uses: actions/checkout@v4
@@ -50,14 +35,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
-        pip install pytest pytest-cov pytest-asyncio httpx
+        pip install -e ".[dev]"
 
     - name: Run backend tests
       env:
-        DATABASE_URL: postgresql://sage_mcp_test:sage_mcp_test@localhost:5432/sage_mcp_test
         SECRET_KEY: test-secret-key
-        ENVIRONMENT: test
       run: |
         pytest tests/ -v --cov=src/sage_mcp --cov-report=xml --cov-report=term
 

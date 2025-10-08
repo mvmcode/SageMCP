@@ -30,6 +30,7 @@ class JSONType(TypeDecorator):
             return json.loads(value)
         return None
 
+
 if TYPE_CHECKING:
     from .tenant import Tenant
 
