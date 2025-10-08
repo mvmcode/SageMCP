@@ -275,6 +275,37 @@ make up
 
 ## 🛠️ Development
 
+### Testing
+
+The project uses SQLite in-memory database for testing to simplify setup and improve speed:
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run backend tests
+pytest tests/ -v --cov=src/sage_mcp --cov-report=term
+
+# Run specific test
+pytest tests/unit/test_config.py -v
+```
+
+**Test Requirements:**
+- ✅ All tests pass (40/40)
+- ✅ Minimum 35% code coverage
+- ✅ Flake8 linting passes
+- ✅ No external services required (SQLite in-memory)
+
+### CI/CD Workflows
+
+The project includes comprehensive GitHub Actions workflows for automated testing and validation.
+
+📖 **[View CI/CD Documentation](.github/workflows/README.md)** for detailed information about:
+- Continuous Integration pipeline
+- Pull Request checks
+- Release management
+- Dependabot configuration
+
 ### Available Make Commands
 
 ```bash
@@ -399,6 +430,9 @@ Apache 2.0 License - see LICENSE file for details.
 - Kubernetes Helm charts
 
 **📈 Recent Updates:**
+- ✅ **All tests passing (40/40)** with SQLite in-memory database
+- ✅ Simplified CI/CD with no PostgreSQL service required
+- ✅ Improved test coverage (41%) and automated quality checks
 - Fixed MCP protocol compliance for Claude Desktop
 - Implemented proper OAuth scope handling for organizations
 - Added token debugging and diagnostic tools
