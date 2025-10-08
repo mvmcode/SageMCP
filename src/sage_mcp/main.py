@@ -1,6 +1,7 @@
 """Main FastAPI application for Sage MCP."""
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,19 +20,19 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
     settings = get_settings()
-    
+
     # Initialize database
     db_manager.initialize()
-    
+
     # Create tables if they don't exist
     await create_tables()
-    
+
     print(f"🚀 {settings.app_name} v{settings.app_version} started")
     print(f"🌍 Environment: {settings.environment}")
-    print(f"🗄️  Database: Connected")
-    
+    print("🗄️  Database: Connected")
+
     yield
-    
+
     # Shutdown
     await db_manager.close()
     print("👋 Sage MCP shutdown complete")
@@ -40,7 +41,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
-    
+
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
@@ -49,7 +50,7 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
     )
-    
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -58,10 +59,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Include API routes
     app.include_router(api_router, prefix="/api/v1")
-    
+
     # Root endpoint
     @app.get("/")
     async def root():
@@ -75,7 +76,7 @@ def create_app() -> FastAPI:
                 "docs": "/docs" if settings.debug else "Disabled in production",
                 "api": {
                     "admin": "/api/v1/admin",
-                    "oauth": "/api/v1/oauth", 
+                    "oauth": "/api/v1/oauth",
                     "mcp": "/api/v1/{tenant_slug}/mcp"
                 }
             },
@@ -95,9 +96,10 @@ def create_app() -> FastAPI:
             "status": "healthy",
             "service": settings.app_name,
             "version": settings.app_version,
-            "environment": settings.environment
+            "environment": settings.environment,
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
-    
+
     return app
 
 
@@ -107,7 +109,7 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     settings = get_settings()
     uvicorn.run(
         "main:app",

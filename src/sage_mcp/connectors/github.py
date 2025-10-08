@@ -14,19 +14,19 @@ from .registry import register_connector
 @register_connector(ConnectorType.GITHUB)
 class GitHubConnector(BaseConnector):
     """GitHub connector for accessing GitHub API."""
-    
+
     @property
     def display_name(self) -> str:
         return "GitHub"
-    
+
     @property
     def description(self) -> str:
         return "Access GitHub repositories, issues, pull requests, and more"
-    
+
     @property
     def requires_oauth(self) -> bool:
         return True
-    
+
     async def get_tools(self, connector: Connector, oauth_cred: Optional[OAuthCredential] = None) -> List[types.Tool]:
         """Get available GitHub tools."""
         tools = [
@@ -43,7 +43,7 @@ class GitHubConnector(BaseConnector):
                             "description": "Type of repositories to list"
                         },
                         "sort": {
-                            "type": "string", 
+                            "type": "string",
                             "enum": ["created", "updated", "pushed", "full_name"],
                             "default": "updated",
                             "description": "Sort order"
@@ -69,7 +69,7 @@ class GitHubConnector(BaseConnector):
                             "description": "Repository owner"
                         },
                         "repo": {
-                            "type": "string", 
+                            "type": "string",
                             "description": "Repository name"
                         }
                     },
@@ -233,14 +233,14 @@ class GitHubConnector(BaseConnector):
                 }
             )
         ]
-        
+
         return tools
-    
+
     async def get_resources(self, connector: Connector, oauth_cred: Optional[OAuthCredential] = None) -> List[types.Resource]:
         """Get available GitHub resources."""
         if not oauth_cred or not self.validate_oauth_credential(oauth_cred):
             return []
-        
+
         # Get user's repositories to create resource URIs
         try:
             response = await self._make_authenticated_request(
@@ -250,19 +250,19 @@ class GitHubConnector(BaseConnector):
                 params={"type": "all", "per_page": 50}
             )
             repos = response.json()
-            
+
             resources = []
             for repo in repos:
                 owner = repo["owner"]["login"]
                 name = repo["name"]
-                
+
                 # Add repository resource
                 resources.append(types.Resource(
                     uri=f"github://repo/{owner}/{name}",
                     name=f"{owner}/{name}",
                     description=f"GitHub repository: {repo.get('description', 'No description')}"
                 ))
-                
+
                 # Add common files as resources
                 common_files = ["README.md", "package.json", "pyproject.toml", "Dockerfile", ".github/workflows"]
                 for file_path in common_files:
@@ -271,13 +271,13 @@ class GitHubConnector(BaseConnector):
                         name=f"{owner}/{name}:{file_path}",
                         description=f"File in {owner}/{name}"
                     ))
-            
+
             return resources
-            
+
         except Exception as e:
             print(f"Error fetching GitHub resources: {e}")
             return []
-    
+
     async def execute_tool(
         self,
         connector: Connector,
@@ -288,7 +288,7 @@ class GitHubConnector(BaseConnector):
         """Execute a GitHub tool."""
         if not oauth_cred or not self.validate_oauth_credential(oauth_cred):
             return "Error: Invalid or expired GitHub credentials"
-        
+
         try:
             if tool_name == "list_repositories":
                 return await self._list_repositories(arguments, oauth_cred)
@@ -310,10 +310,10 @@ class GitHubConnector(BaseConnector):
                 return await self._get_user_info(arguments, oauth_cred)
             else:
                 return f"Unknown tool: {tool_name}"
-        
+
         except Exception as e:
             return f"Error executing GitHub tool '{tool_name}': {str(e)}"
-    
+
     async def read_resource(
         self,
         connector: Connector,
@@ -323,17 +323,17 @@ class GitHubConnector(BaseConnector):
         """Read a GitHub resource."""
         if not oauth_cred or not self.validate_oauth_credential(oauth_cred):
             return "Error: Invalid or expired GitHub credentials"
-        
+
         try:
             # Parse resource path: repo/owner/name or file/owner/name/path
             parts = resource_path.split("/", 3)
             if len(parts) < 3:
                 return "Error: Invalid resource path"
-            
+
             resource_type = parts[0]
             owner = parts[1]
             repo_name = parts[2]
-            
+
             if resource_type == "repo":
                 # Return repository information
                 response = await self._make_authenticated_request(
@@ -343,7 +343,7 @@ class GitHubConnector(BaseConnector):
                 )
                 repo_data = response.json()
                 return json.dumps(repo_data, indent=2)
-            
+
             elif resource_type == "file" and len(parts) == 4:
                 file_path = parts[3]
                 # Return file content
@@ -353,20 +353,20 @@ class GitHubConnector(BaseConnector):
                     oauth_cred
                 )
                 file_data = response.json()
-                
+
                 if file_data.get("type") == "file":
                     import base64
                     content = base64.b64decode(file_data["content"]).decode("utf-8")
                     return content
                 else:
                     return json.dumps(file_data, indent=2)
-            
+
             else:
                 return "Error: Unsupported resource type"
-        
+
         except Exception as e:
             return f"Error reading GitHub resource: {str(e)}"
-    
+
     async def _list_repositories(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """List user repositories."""
         params = {
@@ -374,7 +374,7 @@ class GitHubConnector(BaseConnector):
             "sort": arguments.get("sort", "updated"),
             "per_page": arguments.get("per_page", 30)
         }
-        
+
         try:
             print(f"DEBUG: Making GitHub API request to /user/repos with params: {params}")
             response = await self._make_authenticated_request(
@@ -383,10 +383,10 @@ class GitHubConnector(BaseConnector):
                 oauth_cred,
                 params=params
             )
-            
+
             repos = response.json()
             print(f"DEBUG: GitHub API returned {len(repos)} repositories")
-            
+
             result = []
             for repo in repos:
                 result.append({
@@ -397,9 +397,9 @@ class GitHubConnector(BaseConnector):
                     "html_url": repo["html_url"],
                     "updated_at": repo["updated_at"]
                 })
-            
+
             return json.dumps(result, indent=2)
-        
+
         except Exception as e:
             print(f"DEBUG: GitHub API error in _list_repositories: {str(e)}")
             print(f"DEBUG: Error type: {type(e)}")
@@ -407,40 +407,40 @@ class GitHubConnector(BaseConnector):
                 print(f"DEBUG: HTTP status: {e.response.status_code}")
                 print(f"DEBUG: Response text: {e.response.text}")
             raise
-    
+
     async def _get_repository(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """Get repository details."""
         owner = arguments["owner"]
         repo = arguments["repo"]
-        
+
         response = await self._make_authenticated_request(
             "GET",
             f"https://api.github.com/repos/{owner}/{repo}",
             oauth_cred
         )
-        
+
         return json.dumps(response.json(), indent=2)
-    
+
     async def _list_issues(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """List repository issues."""
         owner = arguments["owner"]
         repo = arguments["repo"]
-        
+
         params = {
             "state": arguments.get("state", "open"),
             "per_page": arguments.get("per_page", 30)
         }
-        
+
         if "labels" in arguments:
             params["labels"] = arguments["labels"]
-        
+
         response = await self._make_authenticated_request(
             "GET",
             f"https://api.github.com/repos/{owner}/{repo}/issues",
             oauth_cred,
             params=params
         )
-        
+
         issues = response.json()
         result = []
         for issue in issues:
@@ -454,27 +454,27 @@ class GitHubConnector(BaseConnector):
                     "created_at": issue["created_at"],
                     "html_url": issue["html_url"]
                 })
-        
+
         return json.dumps(result, indent=2)
-    
+
     async def _get_file_content(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """Get file content from repository."""
         owner = arguments["owner"]
         repo = arguments["repo"]
         path = arguments["path"]
         ref = arguments.get("ref")
-        
+
         params = {}
         if ref:
             params["ref"] = ref
-        
+
         response = await self._make_authenticated_request(
             "GET",
             f"https://api.github.com/repos/{owner}/{repo}/contents/{path}",
             oauth_cred,
             params=params
         )
-        
+
         file_data = response.json()
         if file_data.get("type") == "file":
             import base64
@@ -482,24 +482,24 @@ class GitHubConnector(BaseConnector):
             return f"File: {path}\n\n{content}"
         else:
             return json.dumps(file_data, indent=2)
-    
+
     async def _list_pull_requests(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """List repository pull requests."""
         owner = arguments["owner"]
         repo = arguments["repo"]
-        
+
         params = {
             "state": arguments.get("state", "open"),
             "per_page": arguments.get("per_page", 30)
         }
-        
+
         response = await self._make_authenticated_request(
             "GET",
             f"https://api.github.com/repos/{owner}/{repo}/pulls",
             oauth_cred,
             params=params
         )
-        
+
         pulls = response.json()
         result = []
         for pr in pulls:
@@ -513,34 +513,34 @@ class GitHubConnector(BaseConnector):
                 "base": pr["base"]["ref"],
                 "head": pr["head"]["ref"]
             })
-        
+
         return json.dumps(result, indent=2)
-    
+
     async def _search_repositories(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """Search for repositories."""
         params = {
             "q": arguments["q"],
             "per_page": arguments.get("per_page", 30)
         }
-        
+
         if "sort" in arguments:
             params["sort"] = arguments["sort"]
         if "order" in arguments:
             params["order"] = arguments["order"]
-        
+
         response = await self._make_authenticated_request(
             "GET",
             "https://api.github.com/search/repositories",
             oauth_cred,
             params=params
         )
-        
+
         search_results = response.json()
         result = {
             "total_count": search_results["total_count"],
             "repositories": []
         }
-        
+
         for repo in search_results["items"]:
             result["repositories"].append({
                 "name": repo["name"],
@@ -551,9 +551,9 @@ class GitHubConnector(BaseConnector):
                 "forks": repo["forks_count"],
                 "language": repo.get("language")
             })
-        
+
         return json.dumps(result, indent=2)
-    
+
     async def _check_token_scopes(self, oauth_cred: OAuthCredential) -> str:
         """Check the current OAuth token's scopes and user information."""
         try:
@@ -564,14 +564,14 @@ class GitHubConnector(BaseConnector):
                 oauth_cred
             )
             user_data = user_response.json()
-            
+
             # Get the token's scopes from the response headers
             token_scopes = user_response.headers.get("X-OAuth-Scopes", "")
             accepted_scopes = user_response.headers.get("X-Accepted-OAuth-Scopes", "")
-            
+
             # Also check what the stored credential says
             stored_scopes = oauth_cred.scopes if oauth_cred.scopes else "No scopes stored"
-            
+
             result = {
                 "user": {
                     "login": user_data.get("login"),
@@ -590,12 +590,12 @@ class GitHubConnector(BaseConnector):
                     "expires_at": str(oauth_cred.expires_at) if oauth_cred.expires_at else "No expiration"
                 }
             }
-            
+
             return json.dumps(result, indent=2)
-            
+
         except Exception as e:
             return f"Error checking token information: {str(e)}"
-    
+
     async def _list_organizations(self, oauth_cred: OAuthCredential) -> str:
         """List organizations the user belongs to."""
         try:
@@ -606,12 +606,12 @@ class GitHubConnector(BaseConnector):
                 oauth_cred
             )
             orgs_data = org_response.json()
-            
+
             result = {
                 "organizations": [],
                 "total_count": len(orgs_data)
             }
-            
+
             for org in orgs_data:
                 result["organizations"].append({
                     "login": org.get("login"),
@@ -620,16 +620,16 @@ class GitHubConnector(BaseConnector):
                     "url": org.get("url"),
                     "html_url": org.get("html_url")
                 })
-            
+
             return json.dumps(result, indent=2)
-            
+
         except Exception as e:
             return f"Error listing organizations: {str(e)}"
-    
+
     async def _get_user_info(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
         """Get information about a specific GitHub user."""
         username = arguments["username"]
-        
+
         try:
             # Get user information
             user_response = await self._make_authenticated_request(
@@ -638,7 +638,7 @@ class GitHubConnector(BaseConnector):
                 oauth_cred
             )
             user_data = user_response.json()
-            
+
             # Also try to get their repositories
             repos_response = await self._make_authenticated_request(
                 "GET",
@@ -647,7 +647,7 @@ class GitHubConnector(BaseConnector):
                 params={"per_page": 20}
             )
             repos_data = repos_response.json()
-            
+
             result = {
                 "user": {
                     "login": user_data.get("login"),
@@ -668,7 +668,7 @@ class GitHubConnector(BaseConnector):
                 },
                 "repositories": []
             }
-            
+
             for repo in repos_data:
                 result["repositories"].append({
                     "name": repo["name"],
@@ -680,8 +680,8 @@ class GitHubConnector(BaseConnector):
                     "stargazers_count": repo["stargazers_count"],
                     "updated_at": repo["updated_at"]
                 })
-            
+
             return json.dumps(result, indent=2)
-            
+
         except Exception as e:
             return f"Error getting user info for {username}: {str(e)}"

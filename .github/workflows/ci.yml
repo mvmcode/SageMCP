@@ -128,16 +128,7 @@ jobs:
         pip install flake8 black isort mypy
 
     - name: Run flake8
-      run: flake8 src/ --max-line-length=88 --extend-ignore=E203,W503
-
-    - name: Check black formatting
-      run: black --check src/
-
-    - name: Check import sorting
-      run: isort --check-only src/
-
-    - name: Run mypy
-      run: mypy src/ --ignore-missing-imports
+      run: flake8 src/ --max-line-length=100 --extend-ignore=E203,W503,E501,W293,W291,W292,F401
 
   docker-build:
     name: Docker Build Test

@@ -12,7 +12,7 @@ async def create_tables(engine: AsyncEngine = None):
         if not db_manager.engine:
             db_manager.initialize()
         engine = db_manager.engine
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -23,6 +23,6 @@ async def drop_tables(engine: AsyncEngine = None):
         if not db_manager.engine:
             db_manager.initialize()
         engine = db_manager.engine
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

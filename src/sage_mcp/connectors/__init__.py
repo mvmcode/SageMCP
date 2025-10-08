@@ -4,7 +4,7 @@ from .base import BaseConnector, ConnectorPlugin
 from .registry import ConnectorRegistry
 
 # Import all connector implementations to trigger registration
-from . import github
+from . import github  # noqa: F401
 # TODO: Add other connectors as they are implemented
 # from . import gitlab
 # from . import slack

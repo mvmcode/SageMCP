@@ -28,7 +28,7 @@ class TenantResponse(BaseModel):
     description: Optional[str]
     is_active: bool
     contact_email: Optional[str]
-    
+
     class Config:
         from_attributes = True
 
@@ -47,7 +47,7 @@ class ConnectorResponse(BaseModel):
     description: Optional[str]
     is_enabled: bool
     configuration: Optional[str]
-    
+
     class Config:
         from_attributes = True
 
@@ -60,13 +60,13 @@ async def create_tenant(
     """Create a new tenant."""
     # Check if tenant slug already exists
     from sqlalchemy import select
-    
+
     existing = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_data.slug)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Tenant slug already exists")
-    
+
     # Create new tenant
     tenant = Tenant(
         slug=tenant_data.slug,
@@ -74,11 +74,11 @@ async def create_tenant(
         description=tenant_data.description,
         contact_email=tenant_data.contact_email
     )
-    
+
     session.add(tenant)
     await session.commit()
     await session.refresh(tenant)
-    
+
     return tenant
 
 
@@ -88,10 +88,10 @@ async def list_tenants(
 ):
     """List all tenants."""
     from sqlalchemy import select
-    
+
     result = await session.execute(select(Tenant))
     tenants = result.scalars().all()
-    
+
     return list(tenants)
 
 
@@ -102,15 +102,15 @@ async def get_tenant(
 ):
     """Get a specific tenant."""
     from sqlalchemy import select
-    
+
     result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     return tenant
 
 
@@ -122,16 +122,16 @@ async def create_connector(
 ):
     """Create a new connector for a tenant."""
     from sqlalchemy import select
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Create connector
     connector = Connector(
         tenant_id=tenant.id,
@@ -140,11 +140,11 @@ async def create_connector(
         description=connector_data.description,
         configuration=connector_data.configuration
     )
-    
+
     session.add(connector)
     await session.commit()
     await session.refresh(connector)
-    
+
     return connector
 
 
@@ -155,22 +155,22 @@ async def list_connectors(
 ):
     """List connectors for a tenant."""
     from sqlalchemy import select
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get connectors
     connector_result = await session.execute(
         select(Connector).where(Connector.tenant_id == tenant.id)
     )
     connectors = connector_result.scalars().all()
-    
+
     return list(connectors)
 
 
@@ -181,29 +181,34 @@ async def delete_tenant(
 ):
     """Delete a tenant and all its connectors."""
     from sqlalchemy import select, delete
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Delete all connectors for this tenant first
     await session.execute(
         delete(Connector).where(Connector.tenant_id == tenant.id)
     )
-    
+
     # Delete the tenant
     await session.execute(
         delete(Tenant).where(Tenant.id == tenant.id)
     )
-    
+
     await session.commit()
-    
-    return {"message": f"Tenant '{tenant_slug}' and all its connectors have been deleted"}
+
+    return {
+        "message": (
+            f"Tenant '{tenant_slug}' and all its connectors "
+            "have been deleted"
+        )
+    }
 
 
 @router.put("/tenants/{tenant_slug}", response_model=TenantResponse)
@@ -214,16 +219,16 @@ async def update_tenant(
 ):
     """Update a tenant."""
     from sqlalchemy import select, update
-    
+
     # Check if tenant exists
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Update tenant
     await session.execute(
         update(Tenant)
@@ -234,14 +239,17 @@ async def update_tenant(
             contact_email=tenant_data.contact_email
         )
     )
-    
+
     await session.commit()
     await session.refresh(tenant)
-    
+
     return tenant
 
 
-@router.get("/tenants/{tenant_slug}/connectors/{connector_id}", response_model=ConnectorResponse)
+@router.get(
+    "/tenants/{tenant_slug}/connectors/{connector_id}",
+    response_model=ConnectorResponse
+)
 async def get_connector(
     tenant_slug: str,
     connector_id: str,
@@ -249,16 +257,16 @@ async def get_connector(
 ):
     """Get a specific connector."""
     from sqlalchemy import select
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get connector
     connector_result = await session.execute(
         select(Connector).where(
@@ -267,14 +275,17 @@ async def get_connector(
         )
     )
     connector = connector_result.scalar_one_or_none()
-    
+
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
-    
+
     return connector
 
 
-@router.put("/tenants/{tenant_slug}/connectors/{connector_id}", response_model=ConnectorResponse)
+@router.put(
+    "/tenants/{tenant_slug}/connectors/{connector_id}",
+    response_model=ConnectorResponse
+)
 async def update_connector(
     tenant_slug: str,
     connector_id: str,
@@ -283,16 +294,16 @@ async def update_connector(
 ):
     """Update a connector."""
     from sqlalchemy import select, update
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get connector
     connector_result = await session.execute(
         select(Connector).where(
@@ -301,10 +312,10 @@ async def update_connector(
         )
     )
     connector = connector_result.scalar_one_or_none()
-    
+
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
-    
+
     # Update connector
     await session.execute(
         update(Connector)
@@ -316,10 +327,10 @@ async def update_connector(
             configuration=connector_data.configuration
         )
     )
-    
+
     await session.commit()
     await session.refresh(connector)
-    
+
     return connector
 
 
@@ -331,16 +342,16 @@ async def delete_connector(
 ):
     """Delete a connector."""
     from sqlalchemy import select, delete
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get connector
     connector_result = await session.execute(
         select(Connector).where(
@@ -349,21 +360,26 @@ async def delete_connector(
         )
     )
     connector = connector_result.scalar_one_or_none()
-    
+
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
-    
+
     # Delete connector
     await session.execute(
         delete(Connector).where(Connector.id == connector_id)
     )
-    
+
     await session.commit()
-    
-    return {"message": f"Connector '{connector.name}' has been deleted"}
+
+    return {
+        "message": f"Connector '{connector.name}' has been deleted"
+    }
 
 
-@router.patch("/tenants/{tenant_slug}/connectors/{connector_id}/toggle", response_model=ConnectorResponse)
+@router.patch(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/toggle",
+    response_model=ConnectorResponse
+)
 async def toggle_connector(
     tenant_slug: str,
     connector_id: str,
@@ -371,16 +387,16 @@ async def toggle_connector(
 ):
     """Toggle connector enabled/disabled status."""
     from sqlalchemy import select, update
-    
+
     # Get tenant
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
     )
     tenant = tenant_result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get connector
     connector_result = await session.execute(
         select(Connector).where(
@@ -389,10 +405,10 @@ async def toggle_connector(
         )
     )
     connector = connector_result.scalar_one_or_none()
-    
+
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
-    
+
     # Toggle enabled status
     new_status = not connector.is_enabled
     await session.execute(
@@ -400,8 +416,8 @@ async def toggle_connector(
         .where(Connector.id == connector_id)
         .values(is_enabled=new_status)
     )
-    
+
     await session.commit()
     await session.refresh(connector)
-    
+
     return connector

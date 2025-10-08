@@ -5,15 +5,15 @@ import App from './App'
 describe('App', () => {
   it('renders without crashing', () => {
     render(<App />)
-    expect(screen.getByText('Sage MCP')).toBeInTheDocument()
+    expect(screen.getAllByText('Sage MCP').length).toBeGreaterThan(0)
   })
 
   it('has navigation links', () => {
     render(<App />)
-    
-    expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    expect(screen.getByText('Tenants')).toBeInTheDocument()
-    expect(screen.getByText('MCP Testing')).toBeInTheDocument()
+
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Tenants').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('MCP Testing').length).toBeGreaterThan(0)
   })
 
   it('renders the main content area', () => {

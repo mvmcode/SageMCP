@@ -2,8 +2,8 @@
 
 import pytest
 import asyncio
+import os
 from unittest.mock import AsyncMock, Mock
-from typing import AsyncGenerator, Generator
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -18,15 +18,19 @@ from sage_mcp.models.connector import Connector, ConnectorType
 from sage_mcp.models.oauth_credential import OAuthCredential
 
 
-# Test database URL (in-memory SQLite)
-TEST_DATABASE_URL = "sqlite:///:memory:"
+# Test database URL - use DATABASE_URL from env or fallback to SQLite
+TEST_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///:memory:")
 
 # Create test engine
-test_engine = create_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+if TEST_DATABASE_URL.startswith("sqlite"):
+    test_engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+else:
+    # PostgreSQL or other databases
+    test_engine = create_engine(TEST_DATABASE_URL)
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
@@ -40,19 +44,47 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database():
+    """Create tables before tests and drop them after."""
+    # Create all tables
+    Base.metadata.create_all(bind=test_engine)
+    yield
+    # Drop all tables after all tests
+    Base.metadata.drop_all(bind=test_engine)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_db():
+    """Clean up database between tests."""
+    yield
+    # Clean up all data after each test for PostgreSQL
+    if not TEST_DATABASE_URL.startswith("sqlite"):
+        session = TestingSessionLocal()
+        try:
+            # Delete in correct order to avoid foreign key constraints
+            session.query(OAuthCredential).delete()
+            session.query(Connector).delete()
+            session.query(Tenant).delete()
+            session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            session.close()
+
+
 @pytest.fixture
 def db_session():
     """Create a test database session."""
-    # Create tables
-    Base.metadata.create_all(bind=test_engine)
-    
     session = TestingSessionLocal()
     try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
-        # Drop tables after test
-        Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture

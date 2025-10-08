@@ -4,14 +4,14 @@ import os
 import secrets
 import urllib.parse
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, field_validator
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.connection import get_db_session
@@ -29,8 +29,18 @@ OAUTH_PROVIDERS = {
         "token_url": "https://github.com/login/oauth/access_token",
         "user_url": "https://api.github.com/user",
         "scopes": ["repo", "user:email", "read:org"],
-        "client_id": os.getenv("GITHUB_CLIENT_ID") if os.getenv("GITHUB_CLIENT_ID") and os.getenv("GITHUB_CLIENT_ID") != "your-github-client-id" else None,
-        "client_secret": os.getenv("GITHUB_CLIENT_SECRET") if os.getenv("GITHUB_CLIENT_SECRET") and os.getenv("GITHUB_CLIENT_SECRET") != "your-github-client-secret" else None,
+        "client_id": (
+            os.getenv("GITHUB_CLIENT_ID")
+            if os.getenv("GITHUB_CLIENT_ID")
+            and os.getenv("GITHUB_CLIENT_ID") != "your-github-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("GITHUB_CLIENT_SECRET")
+            if os.getenv("GITHUB_CLIENT_SECRET")
+            and os.getenv("GITHUB_CLIENT_SECRET") != "your-github-client-secret"
+            else None
+        ),
     },
     "gitlab": {
         "name": "GitLab",
@@ -38,19 +48,43 @@ OAUTH_PROVIDERS = {
         "token_url": "https://gitlab.com/oauth/token",
         "user_url": "https://gitlab.com/api/v4/user",
         "scopes": ["api", "read_user"],
-        "client_id": os.getenv("GITLAB_CLIENT_ID") if os.getenv("GITLAB_CLIENT_ID") and os.getenv("GITLAB_CLIENT_ID") != "your-gitlab-client-id" else None,
-        "client_secret": os.getenv("GITLAB_CLIENT_SECRET") if os.getenv("GITLAB_CLIENT_SECRET") and os.getenv("GITLAB_CLIENT_SECRET") != "your-gitlab-client-secret" else None,
+        "client_id": (
+            os.getenv("GITLAB_CLIENT_ID")
+            if os.getenv("GITLAB_CLIENT_ID")
+            and os.getenv("GITLAB_CLIENT_ID") != "your-gitlab-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("GITLAB_CLIENT_SECRET")
+            if os.getenv("GITLAB_CLIENT_SECRET")
+            and os.getenv("GITLAB_CLIENT_SECRET") != "your-gitlab-client-secret"
+            else None
+        ),
     },
     "google": {
         "name": "Google",
         "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
         "token_url": "https://oauth2.googleapis.com/token",
         "user_url": "https://www.googleapis.com/oauth2/v2/userinfo",
-        "scopes": ["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"],
-        "client_id": os.getenv("GOOGLE_CLIENT_ID") if os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_ID") != "your-google-client-id" else None,
-        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET") if os.getenv("GOOGLE_CLIENT_SECRET") and os.getenv("GOOGLE_CLIENT_SECRET") != "your-google-client-secret" else None,
+        "scopes": [
+            "https://www.googleapis.com/auth/userinfo.profile",
+            "https://www.googleapis.com/auth/userinfo.email"
+        ],
+        "client_id": (
+            os.getenv("GOOGLE_CLIENT_ID")
+            if os.getenv("GOOGLE_CLIENT_ID")
+            and os.getenv("GOOGLE_CLIENT_ID") != "your-google-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("GOOGLE_CLIENT_SECRET")
+            if os.getenv("GOOGLE_CLIENT_SECRET")
+            and os.getenv("GOOGLE_CLIENT_SECRET") != "your-google-client-secret"
+            else None
+        ),
     }
 }
+
 
 class OAuthCredentialResponse(BaseModel):
     id: str
@@ -62,14 +96,14 @@ class OAuthCredentialResponse(BaseModel):
     is_active: bool
     expires_at: Optional[datetime]
     created_at: datetime
-    
+
     @field_validator('id', mode='before')
     @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, UUID):
             return str(v)
         return v
-    
+
     class Config:
         from_attributes = True
 
@@ -88,14 +122,14 @@ class OAuthConfigResponse(BaseModel):
     client_id: str
     is_active: bool
     created_at: datetime
-    
+
     @field_validator('id', mode='before')
     @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, UUID):
             return str(v)
         return v
-    
+
     class Config:
         from_attributes = True
 
@@ -109,8 +143,11 @@ async def initiate_oauth(
 ):
     """Initiate OAuth flow for a provider."""
     if provider not in OAUTH_PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
-    
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported provider: {provider}"
+        )
+
     # Verify tenant exists
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
@@ -118,19 +155,19 @@ async def initiate_oauth(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     provider_config = OAUTH_PROVIDERS[provider]
-    
+
     # Check for tenant-specific OAuth configuration first
     tenant_config_result = await session.execute(
         select(OAuthConfig).where(
             OAuthConfig.tenant_id == tenant.id,
             OAuthConfig.provider == provider,
-            OAuthConfig.is_active == True
+            OAuthConfig.is_active.is_(True)
         )
     )
     tenant_oauth_config = tenant_config_result.scalar_one_or_none()
-    
+
     # Use tenant config if available, otherwise fall back to global config
     if tenant_oauth_config:
         client_id = tenant_oauth_config.client_id
@@ -138,36 +175,43 @@ async def initiate_oauth(
     else:
         client_id = provider_config["client_id"]
         client_secret = provider_config["client_secret"]
-    
+
     if not client_id or not client_secret:
         raise HTTPException(
-            status_code=500, 
-            detail=f"OAuth not configured for {provider}. Please configure OAuth credentials for this tenant."
+            status_code=500,
+            detail=(
+                f"OAuth not configured for {provider}. "
+                "Please configure OAuth credentials for this tenant."
+            )
         )
-    
+
     # Generate state parameter for CSRF protection
     state = secrets.token_urlsafe(32)
-    
+
     # Build redirect URI
-    # For development, use localhost:3000 directly since we know the frontend port
-    # In production, this would come from environment variables or proper proxy headers
-    if 'localhost' in str(request.base_url) and ':3000' not in str(request.base_url):
+    # For development, use localhost:3000 directly since we know the
+    # frontend port. In production, this would come from environment
+    # variables or proper proxy headers
+    base_url_str = str(request.base_url)
+    if 'localhost' in base_url_str and ':3000' not in base_url_str:
         # Development mode - frontend is on localhost:3000
         base_url = "http://localhost:3000"
     else:
         # Check for forwarded headers (for production)
         forwarded_host = request.headers.get('x-forwarded-host')
         forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
-        
+
         if forwarded_host:
             base_url = f"{forwarded_proto}://{forwarded_host}"
         else:
             # Fallback to request base URL
             base_url = str(request.base_url).rstrip('/')
-    
-    redirect_uri = f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
+
+    redirect_uri = (
+        f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
+    )
     print(f"DEBUG: Final redirect_uri = {redirect_uri}")
-    
+
     # Build authorization URL
     params = {
         "client_id": client_id,
@@ -176,9 +220,11 @@ async def initiate_oauth(
         "state": state,
         "response_type": "code"
     }
-    
-    auth_url = f"{provider_config['auth_url']}?{urllib.parse.urlencode(params)}"
-    
+
+    auth_url = (
+        f"{provider_config['auth_url']}?{urllib.parse.urlencode(params)}"
+    )
+
     # Store state in session or cache (for now, we'll include it in the redirect)
     return RedirectResponse(url=auth_url)
 
@@ -192,8 +238,11 @@ async def oauth_callback(
 ):
     """Handle OAuth callback from provider."""
     if provider not in OAUTH_PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
-    
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported provider: {provider}"
+        )
+
     # Verify tenant exists
     tenant_result = await session.execute(
         select(Tenant).where(Tenant.slug == tenant_slug)
@@ -201,34 +250,42 @@ async def oauth_callback(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get query parameters
     params = dict(request.query_params)
-    
+
     if "error" in params:
         error = params.get("error", "unknown")
-        error_description = params.get("error_description", "No description provided")
-        raise HTTPException(
-            status_code=400, 
-            detail=f"OAuth error from {provider}: {error} - {error_description}"
+        error_description = params.get(
+            "error_description", "No description provided"
         )
-    
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"OAuth error from {provider}: {error} - "
+                f"{error_description}"
+            )
+        )
+
     if "code" not in params:
-        raise HTTPException(status_code=400, detail="Authorization code not provided")
-    
+        raise HTTPException(
+            status_code=400,
+            detail="Authorization code not provided"
+        )
+
     auth_code = params["code"]
     provider_config = OAUTH_PROVIDERS[provider]
-    
+
     # Check for tenant-specific OAuth configuration first
     tenant_config_result = await session.execute(
         select(OAuthConfig).where(
             OAuthConfig.tenant_id == tenant.id,
             OAuthConfig.provider == provider,
-            OAuthConfig.is_active == True
+            OAuthConfig.is_active.is_(True)
         )
     )
     tenant_oauth_config = tenant_config_result.scalar_one_or_none()
-    
+
     # Use tenant config if available, otherwise fall back to global config
     if tenant_oauth_config:
         client_id = tenant_oauth_config.client_id
@@ -236,32 +293,39 @@ async def oauth_callback(
     else:
         client_id = provider_config["client_id"]
         client_secret = provider_config["client_secret"]
-    
+
     if not client_id or not client_secret:
         raise HTTPException(
-            status_code=500, 
-            detail=f"OAuth not configured for {provider}. Please configure OAuth credentials for this tenant."
+            status_code=500,
+            detail=(
+                f"OAuth not configured for {provider}. "
+                "Please configure OAuth credentials for this tenant."
+            )
         )
-    
+
     # Build redirect URI (must match the one used in initiate_oauth)
-    # For development, use localhost:3000 directly since we know the frontend port
-    # In production, this would come from environment variables or proper proxy headers
-    if 'localhost' in str(request.base_url) and ':3000' not in str(request.base_url):
+    # For development, use localhost:3000 directly since we know the
+    # frontend port. In production, this would come from environment
+    # variables or proper proxy headers
+    base_url_str = str(request.base_url)
+    if 'localhost' in base_url_str and ':3000' not in base_url_str:
         # Development mode - frontend is on localhost:3000
         base_url = "http://localhost:3000"
     else:
         # Check for forwarded headers (for production)
         forwarded_host = request.headers.get('x-forwarded-host')
         forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
-        
+
         if forwarded_host:
             base_url = f"{forwarded_proto}://{forwarded_host}"
         else:
             # Fallback to request base URL
             base_url = str(request.base_url).rstrip('/')
-    
-    redirect_uri = f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
-    
+
+    redirect_uri = (
+        f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
+    )
+
     # Exchange authorization code for access token
     token_data = {
         "client_id": client_id,
@@ -269,48 +333,53 @@ async def oauth_callback(
         "code": auth_code,
         "redirect_uri": redirect_uri,
     }
-    
+
     if provider == "google":
         token_data["grant_type"] = "authorization_code"
-    
+
     headers = {"Accept": "application/json"}
-    
+
     async with httpx.AsyncClient() as client:
         token_response = await client.post(
             provider_config["token_url"],
             data=token_data,
             headers=headers
         )
-        
+
         if token_response.status_code != 200:
             raise HTTPException(
                 status_code=400,
-                detail=f"Failed to exchange authorization code: {token_response.text}"
+                detail=(
+                    "Failed to exchange authorization code: "
+                    f"{token_response.text}"
+                )
             )
-        
+
         token_info = token_response.json()
-    
+
     access_token = token_info.get("access_token")
     if not access_token:
         raise HTTPException(status_code=400, detail="No access token received")
-    
+
     # Get user information from provider
     user_headers = {"Authorization": f"Bearer {access_token}"}
-    
+
     async with httpx.AsyncClient() as client:
         user_response = await client.get(
             provider_config["user_url"],
             headers=user_headers
         )
-        
+
         if user_response.status_code != 200:
             raise HTTPException(
                 status_code=400,
-                detail=f"Failed to get user info: {user_response.text}"
+                detail=(
+                    f"Failed to get user info: {user_response.text}"
+                )
             )
-        
+
         user_info = user_response.json()
-    
+
     # Extract user data based on provider
     if provider == "github":
         provider_user_id = str(user_info["id"])
@@ -323,13 +392,17 @@ async def oauth_callback(
         provider_username = user_info.get("name", user_info.get("email"))
     else:
         provider_user_id = str(user_info.get("id", "unknown"))
-        provider_username = user_info.get("login", user_info.get("username", "unknown"))
-    
+        provider_username = user_info.get(
+            "login", user_info.get("username", "unknown")
+        )
+
     # Calculate expiration time
     expires_at = None
     if "expires_in" in token_info:
-        expires_at = datetime.utcnow() + timedelta(seconds=int(token_info["expires_in"]))
-    
+        expires_at = datetime.utcnow() + timedelta(
+            seconds=int(token_info["expires_in"])
+        )
+
     # Check if credential already exists for this tenant/provider/user
     existing_cred = await session.execute(
         select(OAuthCredential).where(
@@ -339,7 +412,7 @@ async def oauth_callback(
         )
     )
     existing = existing_cred.scalar_one_or_none()
-    
+
     if existing:
         # Update existing credential
         existing.access_token = access_token
@@ -366,28 +439,32 @@ async def oauth_callback(
             is_active=True
         )
         session.add(oauth_cred)
-    
+
     await session.commit()
-    
+
     # Redirect to frontend with success message
     # Use same logic as redirect URI generation for consistency
-    if 'localhost' in str(request.base_url) and ':3000' not in str(request.base_url):
+    base_url_str = str(request.base_url)
+    if 'localhost' in base_url_str and ':3000' not in base_url_str:
         # Development mode - frontend is on localhost:3000
         frontend_url = "http://localhost:3000"
     else:
         # Check for forwarded headers (for production)
         forwarded_host = request.headers.get('x-forwarded-host')
         forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
-        
+
         if forwarded_host:
             frontend_url = f"{forwarded_proto}://{forwarded_host}"
         else:
             # Fallback to request base URL, try to replace 8000 with 3000
-            frontend_url = str(request.base_url).rstrip('/').replace(':8000', ':3000')
-    
-    success_url = f"{frontend_url}/oauth/success?provider={provider}&tenant={tenant_slug}"
+            frontend_url = base_url_str.rstrip('/').replace(':8000', ':3000')
+
+    success_url = (
+        f"{frontend_url}/oauth/success?provider={provider}&"
+        f"tenant={tenant_slug}"
+    )
     print(f"DEBUG: OAuth success redirect URL = {success_url}")
-    
+
     return RedirectResponse(url=success_url)
 
 
@@ -405,7 +482,7 @@ async def revoke_oauth(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Delete OAuth credentials for this tenant and provider
     result = await session.execute(
         delete(OAuthCredential).where(
@@ -413,15 +490,15 @@ async def revoke_oauth(
             OAuthCredential.provider == provider
         )
     )
-    
+
     await session.commit()
-    
+
     if result.rowcount == 0:
         raise HTTPException(
-            status_code=404, 
+            status_code=404,
             detail=f"No OAuth credentials found for {provider}"
         )
-    
+
     return {
         "message": f"OAuth credentials revoked for {provider}",
         "tenant": tenant_slug,
@@ -430,7 +507,10 @@ async def revoke_oauth(
     }
 
 
-@router.get("/{tenant_slug}/auth", response_model=List[OAuthCredentialResponse])
+@router.get(
+    "/{tenant_slug}/auth",
+    response_model=List[OAuthCredentialResponse]
+)
 async def list_oauth_credentials(
     tenant_slug: str,
     session: AsyncSession = Depends(get_db_session)
@@ -443,13 +523,15 @@ async def list_oauth_credentials(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get OAuth credentials for this tenant
     credentials_result = await session.execute(
-        select(OAuthCredential).where(OAuthCredential.tenant_id == tenant.id)
+        select(OAuthCredential).where(
+            OAuthCredential.tenant_id == tenant.id
+        )
     )
     credentials = credentials_result.scalars().all()
-    
+
     return list(credentials)
 
 
@@ -465,7 +547,7 @@ async def list_oauth_providers():
             "configured": bool(config["client_id"] and config["client_secret"]),
             "auth_url": config["auth_url"]
         })
-    
+
     return providers
 
 
@@ -482,13 +564,13 @@ async def list_oauth_configs(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Get OAuth configurations
     configs_result = await session.execute(
         select(OAuthConfig).where(OAuthConfig.tenant_id == tenant.id)
     )
     configs = configs_result.scalars().all()
-    
+
     return list(configs)
 
 
@@ -506,11 +588,14 @@ async def create_oauth_config(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Validate provider
     if config_data.provider not in OAUTH_PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {config_data.provider}")
-    
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported provider: {config_data.provider}"
+        )
+
     # Check if configuration already exists
     existing_config = await session.execute(
         select(OAuthConfig).where(
@@ -519,7 +604,7 @@ async def create_oauth_config(
         )
     )
     existing = existing_config.scalar_one_or_none()
-    
+
     if existing:
         # Update existing configuration
         existing.client_id = config_data.client_id
@@ -556,7 +641,7 @@ async def delete_oauth_config(
     tenant = tenant_result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     # Find and delete configuration
     config_result = await session.execute(
         select(OAuthConfig).where(
@@ -565,11 +650,18 @@ async def delete_oauth_config(
         )
     )
     config = config_result.scalar_one_or_none()
-    
+
     if not config:
-        raise HTTPException(status_code=404, detail="OAuth configuration not found")
-    
+        raise HTTPException(
+            status_code=404,
+            detail="OAuth configuration not found"
+        )
+
     await session.delete(config)
     await session.commit()
-    
-    return {"message": f"OAuth configuration for {provider} deleted successfully"}
+
+    return {
+        "message": (
+            f"OAuth configuration for {provider} deleted successfully"
+        )
+    }

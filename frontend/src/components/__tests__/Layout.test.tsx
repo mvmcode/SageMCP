@@ -19,11 +19,11 @@ describe('Layout', () => {
         <div>Content</div>
       </Layout>
     )
-    
-    // Check for navigation items
-    expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    expect(screen.getByText('Tenants')).toBeInTheDocument()
-    expect(screen.getByText('MCP Testing')).toBeInTheDocument()
+
+    // Check for navigation items (multiple instances for mobile/desktop)
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Tenants').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('MCP Testing').length).toBeGreaterThan(0)
   })
 
   it('renders the logo/title', () => {
@@ -32,8 +32,9 @@ describe('Layout', () => {
         <div>Content</div>
       </Layout>
     )
-    
-    expect(screen.getByText('Sage MCP')).toBeInTheDocument()
+
+    // Logo appears in both mobile and desktop nav
+    expect(screen.getAllByText('Sage MCP').length).toBeGreaterThan(0)
   })
 
   it('has proper semantic structure', () => {
@@ -42,9 +43,9 @@ describe('Layout', () => {
         <div>Content</div>
       </Layout>
     )
-    
-    // Should have nav and main elements
-    expect(screen.getByRole('navigation')).toBeInTheDocument()
+
+    // Should have nav and main elements (multiple navs for mobile/desktop)
+    expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0)
     expect(screen.getByRole('main')).toBeInTheDocument()
   })
 })
