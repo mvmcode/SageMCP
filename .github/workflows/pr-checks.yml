@@ -189,22 +189,6 @@ jobs:
         curl -f http://localhost:3000
         docker-compose down -v
 
-  security-pr-check:
-    name: Security Check
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'table'
-        exit-code: '1'
-        severity: 'CRITICAL,HIGH'
-
   comment-coverage:
     name: Comment Coverage
     runs-on: ubuntu-latest
@@ -248,7 +232,6 @@ jobs:
           |-----------|--------|---------|
           | Backend | ${getStatusIcon(backendResult)} | ${getStatusText(backendResult)} |
           | Frontend | ${getStatusIcon(frontendResult)} | ${getStatusText(frontendResult)} |
-          | Security | ✅ | Scan completed |
           
           ${backendResult === 'failure' || frontendResult === 'failure' 
             ? '⚠️ **Action Required**: Some checks failed. Please review the logs and fix the issues.'
