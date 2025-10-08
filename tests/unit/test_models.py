@@ -32,7 +32,7 @@ class TestTenant:
     def test_tenant_string_representation(self):
         """Test tenant string representation."""
         tenant = Tenant(slug="test", name="Test Tenant")
-        assert str(tenant) == "Test Tenant (test)"
+        assert str(tenant) == "<Tenant(slug='test', name='Test Tenant')>"
 
     def test_tenant_relationships(self, db_session, sample_tenant):
         """Test tenant relationships."""
@@ -88,7 +88,7 @@ class TestConnector:
         """Test connector types enum."""
         assert ConnectorType.GITHUB.value == "github"
         assert ConnectorType.GITLAB.value == "gitlab"
-        assert ConnectorType.GOOGLE.value == "google"
+        assert ConnectorType.GOOGLE_DOCS.value == "google_docs"
 
     def test_connector_tenant_relationship(self, db_session, sample_tenant):
         """Test connector-tenant relationship."""

@@ -6,16 +6,50 @@ from unittest.mock import patch
 from sage_mcp.config import Settings, get_settings
 
 
+# Clear settings cache before each test in this module
+def setup_module():
+    """Clear settings cache before tests."""
+    get_settings.cache_clear()
+
+
+def teardown_module():
+    """Clear settings cache after tests."""
+    get_settings.cache_clear()
+
+
 class TestSettings:
     """Test Settings class."""
 
+    def setup_method(self):
+        """Clear settings cache before each test."""
+        get_settings.cache_clear()
+
+    def teardown_method(self):
+        """Clear settings cache after each test."""
+        get_settings.cache_clear()
+
     def test_default_settings(self):
         """Test default settings values."""
-        # Clear ENVIRONMENT if set by CI
-        with patch.dict(os.environ, {"ENVIRONMENT": ""}, clear=False):
-            if "ENVIRONMENT" in os.environ:
-                del os.environ["ENVIRONMENT"]
-            settings = Settings(secret_key="test-secret")
+        # Clear environment variables that might interfere
+        env_vars = {"SECRET_KEY": "test-secret"}
+        # Only patch specific vars, don't modify existing environment
+        with patch.dict(os.environ, env_vars, clear=True):
+            # Create settings without loading .env file
+            from pydantic_settings import SettingsConfigDict
+
+            # Temporarily override env_file to prevent loading .env
+            original_config = Settings.model_config
+            Settings.model_config = SettingsConfigDict(
+                env_file=None,
+                case_sensitive=False,
+                extra="ignore"
+            )
+
+            try:
+                settings = Settings()
+            finally:
+                # Restore original config
+                Settings.model_config = original_config
 
             assert settings.app_name == "Sage MCP"
             assert settings.app_version == "0.1.0"

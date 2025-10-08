@@ -1,14 +1,34 @@
 """Connector model for managing tenant-specific connector configurations."""
 
 import enum
+import json
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+
+class JSONType(TypeDecorator):
+    """JSON type that handles serialization for SQLite and PostgreSQL."""
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: Optional[Dict[str, Any]], dialect) -> Optional[str]:
+        """Convert dict to JSON string before storing."""
+        if value is not None:
+            return json.dumps(value)
+        return None
+
+    def process_result_value(self, value: Optional[str], dialect) -> Optional[Dict[str, Any]]:
+        """Convert JSON string back to dict after loading."""
+        if value is not None:
+            return json.loads(value)
+        return None
 
 if TYPE_CHECKING:
     from .tenant import Tenant
@@ -59,7 +79,7 @@ class Connector(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Connector-specific configuration (JSON)
-    configuration: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    configuration: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONType, nullable=True)
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="connectors")

@@ -1,6 +1,6 @@
 """Admin API routes for tenant and connector management."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,7 +37,7 @@ class ConnectorCreate(BaseModel):
     connector_type: ConnectorType
     name: str
     description: Optional[str] = None
-    configuration: Optional[str] = None
+    configuration: Optional[Dict[str, Any]] = None
 
 
 class ConnectorResponse(BaseModel):
@@ -46,13 +46,13 @@ class ConnectorResponse(BaseModel):
     name: str
     description: Optional[str]
     is_enabled: bool
-    configuration: Optional[str]
+    configuration: Optional[Dict[str, Any]]
 
     class Config:
         from_attributes = True
 
 
-@router.post("/tenants", response_model=TenantResponse)
+@router.post("/tenants", response_model=TenantResponse, status_code=201)
 async def create_tenant(
     tenant_data: TenantCreate,
     session: AsyncSession = Depends(get_db_session)
@@ -114,7 +114,7 @@ async def get_tenant(
     return tenant
 
 
-@router.post("/tenants/{tenant_slug}/connectors", response_model=ConnectorResponse)
+@router.post("/tenants/{tenant_slug}/connectors", response_model=ConnectorResponse, status_code=201)
 async def create_connector(
     tenant_slug: str,
     connector_data: ConnectorCreate,
