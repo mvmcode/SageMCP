@@ -1,15 +1,12 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { 
-  Building2, 
-  Plug, 
-  Activity, 
-  Users, 
-  TrendingUp, 
-  AlertCircle,
-  CheckCircle,
-  Clock
+import {
+  Building2,
+  Plug,
+  Activity,
+  Users,
+  TrendingUp
 } from 'lucide-react'
 import { tenantsApi, healthApi } from '@/utils/api'
 import { cn } from '@/utils/cn'
@@ -52,45 +49,6 @@ const StatCard = ({
   </div>
 )
 
-const ActivityItem = ({ 
-  message, 
-  time, 
-  status 
-}: { 
-  type: string
-  message: string
-  time: string
-  status: 'success' | 'error' | 'warning' | 'info'
-}) => {
-  const statusIcons = {
-    success: CheckCircle,
-    error: AlertCircle,
-    warning: AlertCircle,
-    info: Clock
-  }
-  
-  const statusColors = {
-    success: 'text-success-500',
-    error: 'text-error-500',
-    warning: 'text-warning-500',
-    info: 'text-primary-500'
-  }
-  
-  const Icon = statusIcons[status]
-  
-  return (
-    <div className="flex items-start space-x-3 py-3">
-      <div className={cn('mt-0.5', statusColors[status])}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-900">{message}</p>
-        <p className="text-xs text-gray-500 mt-1">{time}</p>
-      </div>
-    </div>
-  )
-}
-
 export default function Dashboard() {
   const { data: tenants = [] } = useQuery({
     queryKey: ['tenants'],
@@ -105,28 +63,6 @@ export default function Dashboard() {
 
   const activeTenants = tenants.filter(t => t.is_active).length
   const totalTenants = tenants.length
-
-  // Mock data for demo purposes
-  const mockActivities = [
-    {
-      type: 'tenant',
-      message: 'New tenant "mani" was created',
-      time: '2 hours ago',
-      status: 'success' as const
-    },
-    {
-      type: 'connector',
-      message: 'GitHub connector enabled for tenant "mani"',
-      time: '3 hours ago',
-      status: 'success' as const
-    },
-    {
-      type: 'mcp',
-      message: 'MCP protocol test completed successfully',
-      time: '1 day ago',
-      status: 'success' as const
-    }
-  ]
 
   return (
     <div className="space-y-6">
@@ -173,18 +109,12 @@ export default function Dashboard() {
               <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
             </div>
             <div className="card-content">
-              <div className="space-y-1">
-                {mockActivities.map((activity, index) => (
-                  <ActivityItem key={index} {...activity} />
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <Link 
-                  to="/activity" 
-                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                >
-                  View all activity →
-                </Link>
+              <div className="text-center py-12">
+                <Activity className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No recent activity to display</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Activity tracking will be available soon
+                </p>
               </div>
             </div>
           </div>
