@@ -16,7 +16,6 @@ const connectorSchema = z.object({
   }),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   description: z.string().optional(),
-  configuration: z.string().optional(),
 })
 
 type ConnectorFormData = z.infer<typeof connectorSchema>
@@ -160,7 +159,12 @@ export default function ConnectorModal({
   }
 
   const onSubmit = (data: ConnectorFormData) => {
-    createMutation.mutate(data)
+    // Add configuration as null since it's not used yet
+    const payload = {
+      ...data,
+      configuration: null
+    }
+    createMutation.mutate(payload as any)
   }
 
   console.log('ConnectorModal render:', { isOpen, step, selectedType })
@@ -272,25 +276,6 @@ export default function ConnectorModal({
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-error-600">{errors.description.message}</p>
-                  )}
-                </div>
-
-                {/* Configuration */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Configuration (JSON)
-                  </label>
-                  <textarea
-                    {...register('configuration')}
-                    className="input-field font-mono text-sm"
-                    rows={6}
-                    placeholder='{"api_key": "your-key", "base_url": "https://api.example.com"}'
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Optional JSON configuration for the connector
-                  </p>
-                  {errors.configuration && (
-                    <p className="mt-1 text-sm text-error-600">{errors.configuration.message}</p>
                   )}
                 </div>
 
