@@ -285,7 +285,7 @@ class MCPServer:
                 select(OAuthCredential).where(
                     OAuthCredential.tenant_id == tenant_id,
                     OAuthCredential.provider == provider,
-                    OAuthCredential.is_active is True
+                    OAuthCredential.is_active.is_(True)
                 )
             )
             return result.scalar_one_or_none()
