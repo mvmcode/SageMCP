@@ -122,6 +122,7 @@ async def create_connector(
 ):
     """Create a new connector for a tenant."""
     from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
 
     # Get tenant
     tenant_result = await session.execute(
@@ -131,6 +132,19 @@ async def create_connector(
 
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Check if connector of this type already exists for this tenant
+    existing_connector = await session.execute(
+        select(Connector).where(
+            Connector.tenant_id == tenant.id,
+            Connector.connector_type == connector_data.connector_type
+        )
+    )
+    if existing_connector.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail=f"A {connector_data.connector_type.value} connector already exists for this tenant. Only one connector per type is allowed."
+        )
 
     # Create connector
     connector = Connector(
@@ -142,8 +156,16 @@ async def create_connector(
     )
 
     session.add(connector)
-    await session.commit()
-    await session.refresh(connector)
+
+    try:
+        await session.commit()
+        await session.refresh(connector)
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"A {connector_data.connector_type.value} connector already exists for this tenant. Only one connector per type is allowed."
+        )
 
     return connector
 

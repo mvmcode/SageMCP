@@ -23,10 +23,12 @@ type ConnectorFormData = z.infer<typeof connectorSchema>
 const ConnectorTypeCard = ({
   type,
   selected,
+  disabled,
   onSelect,
 }: {
   type: ConnectorType
   selected: boolean
+  disabled?: boolean
   onSelect: (type: ConnectorType) => void
 }) => {
   const configs = {
@@ -68,10 +70,13 @@ const ConnectorTypeCard = ({
   return (
     <button
       type="button"
-      onClick={() => onSelect(type)}
+      onClick={() => !disabled && onSelect(type)}
+      disabled={disabled}
       className={cn(
-        'p-4 border-2 rounded-lg transition-all text-left w-full',
-        selected
+        'p-4 border-2 rounded-lg transition-all text-left w-full relative',
+        disabled
+          ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+          : selected
           ? 'border-primary-500 bg-primary-50'
           : 'border-gray-200 hover:border-gray-300'
       )}
@@ -82,7 +87,9 @@ const ConnectorTypeCard = ({
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-gray-900">{config.name}</h4>
-          <p className="text-xs text-gray-500 mt-1">{config.description}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {disabled ? 'Already exists for this tenant' : config.description}
+          </p>
         </div>
       </div>
     </button>
@@ -121,6 +128,17 @@ export default function ConnectorModal({
     queryFn: () => tenantsApi.list().then(res => res.data),
     enabled: isOpen
   })
+
+  // Fetch existing connectors for the selected tenant to check for duplicates
+  const selectedTenantSlug = preselectedTenant || undefined
+  const { data: existingConnectors = [] } = useQuery({
+    queryKey: ['connectors', selectedTenantSlug],
+    queryFn: () => selectedTenantSlug ? connectorsApi.list(selectedTenantSlug).then(res => res.data) : Promise.resolve([]),
+    enabled: isOpen && !!selectedTenantSlug
+  })
+
+  // Get list of connector types already in use
+  const usedConnectorTypes = new Set(existingConnectors.map(c => c.connector_type))
 
   const createMutation = useMutation({
     mutationFn: ({ tenant_slug, ...data }: ConnectorFormData) => 
@@ -203,6 +221,7 @@ export default function ConnectorModal({
                     key={type}
                     type={type}
                     selected={selectedType === type}
+                    disabled={usedConnectorTypes.has(type)}
                     onSelect={handleTypeSelect}
                   />
                 ))}

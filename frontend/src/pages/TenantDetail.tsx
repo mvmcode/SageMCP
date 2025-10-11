@@ -16,7 +16,7 @@ import {
   Copy
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { tenantsApi, connectorsApi, mcpApi } from '@/utils/api'
+import { tenantsApi, connectorsApi } from '@/utils/api'
 import { cn } from '@/utils/cn'
 import ConnectorModal from '@/components/ConnectorModal'
 import OAuthManager from '@/components/OAuthManager'
@@ -47,8 +47,9 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
   const [showMenu, setShowMenu] = useState(false)
   const queryClient = useQueryClient()
 
-  const mcpWebSocketUrl = `ws://${window.location.host}/${tenantSlug}/mcp`
-  const mcpHttpUrl = `http://${window.location.host}/api/v1/${tenantSlug}/mcp`
+  // Connector-specific URLs
+  const mcpWebSocketUrl = `ws://${window.location.host}/${tenantSlug}/connectors/${connector.id}/mcp`
+  const mcpHttpUrl = `http://${window.location.host}/api/v1/${tenantSlug}/connectors/${connector.id}/mcp`
   const isLocalhost = window.location.hostname === 'localhost'
 
   const copyUrl = (url: string, type: string) => {
@@ -219,12 +220,6 @@ export default function TenantDetail() {
     enabled: !!slug
   })
 
-  const { data: mcpInfo } = useQuery({
-    queryKey: ['mcp-info', slug],
-    queryFn: () => mcpApi.getInfo(slug!).then(res => res.data),
-    enabled: !!slug
-  })
-
   if (tenantLoading) {
     return (
       <div className="space-y-6">
@@ -368,52 +363,15 @@ export default function TenantDetail() {
             <div className="card-content">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">MCP Status</p>
+                  <p className="text-sm font-medium text-gray-600">Connector Types</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {mcpInfo ? 'Ready' : 'Loading...'}
+                    {new Set(connectors.map(c => c.connector_type)).size}
                   </p>
                 </div>
                 <Building2 className="h-8 w-8 text-primary-600" />
               </div>
             </div>
           </div>
-
-          {/* MCP Info */}
-          {mcpInfo && (
-            <div className="md:col-span-3">
-              <div className="card">
-                <div className="card-header">
-                  <h3 className="text-lg font-semibold text-gray-900">MCP Server Information</h3>
-                </div>
-                <div className="card-content">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Server Name</p>
-                      <p className="text-gray-900">{mcpInfo.server_name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Server Version</p>
-                      <p className="text-gray-900">{mcpInfo.server_version}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Protocol Version</p>
-                      <p className="text-gray-900">{mcpInfo.protocol_version}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Capabilities</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {Object.keys(mcpInfo.capabilities).map(cap => (
-                          <span key={cap} className="status-badge bg-primary-100 text-primary-800">
-                            {cap}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Contact Info */}
           {tenant.contact_email && (
