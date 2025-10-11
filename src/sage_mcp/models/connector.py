@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -54,6 +54,9 @@ class Connector(Base):
     """Connector configuration for tenants."""
 
     __tablename__ = "connectors"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'connector_type', name='uq_tenant_connector_type'),
+    )
 
     # Foreign key to tenant
     tenant_id: Mapped[uuid.UUID] = mapped_column(

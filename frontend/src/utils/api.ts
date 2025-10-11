@@ -102,10 +102,10 @@ export const connectorsApi = {
 }
 
 export const mcpApi = {
-  getInfo: (tenantSlug: string) => 
-    api.get<MCPServerInfo>(`/${tenantSlug}/mcp/info`),
-  sendMessage: (tenantSlug: string, message: any) => 
-    api.post(`/${tenantSlug}/mcp`, message),
+  getInfo: (tenantSlug: string, connectorId: string) =>
+    api.get<MCPServerInfo>(`/${tenantSlug}/connectors/${connectorId}/mcp/info`),
+  sendMessage: (tenantSlug: string, connectorId: string, message: any) =>
+    api.post(`/${tenantSlug}/connectors/${connectorId}/mcp`, message),
 }
 
 export const oauthApi = {

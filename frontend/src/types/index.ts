@@ -45,6 +45,9 @@ export enum ConnectorType {
 
 export interface MCPServerInfo {
   tenant: string
+  connector_id: string
+  connector_name: string
+  connector_type: string
   server_name: string
   server_version: string
   protocol_version: string
@@ -53,11 +56,6 @@ export interface MCPServerInfo {
     resources?: { subscribe?: boolean; listChanged?: boolean }
     prompts?: { listChanged?: boolean }
   }
-  connectors: Array<{
-    type: string
-    name: string
-    enabled: boolean
-  }>
 }
 
 export interface APIResponse<T> {

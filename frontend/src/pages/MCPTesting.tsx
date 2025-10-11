@@ -12,7 +12,7 @@ import {
   Trash2,
   Settings
 } from 'lucide-react'
-import { tenantsApi, mcpApi } from '@/utils/api'
+import { tenantsApi, connectorsApi, mcpApi } from '@/utils/api'
 import { cn } from '@/utils/cn'
 import toast from 'react-hot-toast'
 
@@ -111,6 +111,7 @@ const RequestTemplates = {
 export default function MCPTesting() {
   const [searchParams] = useSearchParams()
   const [selectedTenant, setSelectedTenant] = useState(searchParams.get('tenant') || '')
+  const [selectedConnector, setSelectedConnector] = useState('')
   const [requestBody, setRequestBody] = useState(JSON.stringify(RequestTemplates['List Tools'], null, 2))
   const [messages, setMessages] = useState<TestMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -123,10 +124,16 @@ export default function MCPTesting() {
     queryFn: () => tenantsApi.list().then(res => res.data)
   })
 
-  const { data: mcpInfo } = useQuery({
-    queryKey: ['mcp-info', selectedTenant],
-    queryFn: () => mcpApi.getInfo(selectedTenant).then(res => res.data),
+  const { data: connectors = [] } = useQuery({
+    queryKey: ['connectors', selectedTenant],
+    queryFn: () => connectorsApi.list(selectedTenant).then(res => res.data),
     enabled: !!selectedTenant
+  })
+
+  const { data: mcpInfo } = useQuery({
+    queryKey: ['mcp-info', selectedTenant, selectedConnector],
+    queryFn: () => mcpApi.getInfo(selectedTenant, selectedConnector).then(res => res.data),
+    enabled: !!selectedTenant && !!selectedConnector
   })
 
   useEffect(() => {
@@ -139,12 +146,17 @@ export default function MCPTesting() {
       return
     }
 
+    if (!selectedConnector) {
+      toast.error('Please select a connector first')
+      return
+    }
+
     if (wsRef.current) {
       wsRef.current.close()
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/${selectedTenant}/mcp`
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/${selectedTenant}/connectors/${selectedConnector}/mcp`
     
     wsRef.current = new WebSocket(wsUrl)
     
@@ -198,15 +210,20 @@ export default function MCPTesting() {
       return
     }
 
+    if (!selectedConnector) {
+      toast.error('Please select a connector first')
+      return
+    }
+
     try {
       setIsLoading(true)
       const requestData = JSON.parse(requestBody)
-      
+
       addMessage('request', requestData, selectedTenant)
-      
-      const response = await mcpApi.sendMessage(selectedTenant, requestData)
+
+      const response = await mcpApi.sendMessage(selectedTenant, selectedConnector, requestData)
       addMessage('response', response.data, selectedTenant)
-      
+
       toast.success('Request sent successfully')
     } catch (error: any) {
       const errorData = error.response?.data || { error: error.message }
@@ -283,7 +300,10 @@ export default function MCPTesting() {
                 </label>
                 <select
                   value={selectedTenant}
-                  onChange={(e) => setSelectedTenant(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedTenant(e.target.value)
+                    setSelectedConnector('') // Reset connector when tenant changes
+                  }}
                   className="input-field"
                 >
                   <option value="">Choose a tenant...</option>
@@ -295,14 +315,43 @@ export default function MCPTesting() {
                 </select>
               </div>
 
+              {/* Connector Selection */}
+              {selectedTenant && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Connector
+                  </label>
+                  <select
+                    value={selectedConnector}
+                    onChange={(e) => setSelectedConnector(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="">Choose a connector...</option>
+                    {connectors.map(connector => (
+                      <option key={connector.id} value={connector.id}>
+                        {connector.name} ({connector.connector_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Reset connector when tenant changes */}
+              {selectedTenant && connectors.length === 0 && (
+                <div className="text-sm text-gray-500 italic">
+                  No connectors found for this tenant
+                </div>
+              )}
+
               {/* Connection Status */}
-              {selectedTenant && mcpInfo && (
+              {selectedTenant && selectedConnector && mcpInfo && (
                 <div className="p-3 bg-gray-50 rounded-lg">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">MCP Server Info</h4>
                   <div className="space-y-1 text-xs text-gray-600">
+                    <div>Connector: {mcpInfo.connector_name}</div>
+                    <div>Type: {mcpInfo.connector_type}</div>
                     <div>Server: {mcpInfo.server_name} v{mcpInfo.server_version}</div>
                     <div>Protocol: {mcpInfo.protocol_version}</div>
-                    <div>Connectors: {mcpInfo.connectors.length}</div>
                   </div>
                 </div>
               )}
@@ -322,7 +371,7 @@ export default function MCPTesting() {
                   {!isConnected ? (
                     <button
                       onClick={connectWebSocket}
-                      disabled={!selectedTenant}
+                      disabled={!selectedTenant || !selectedConnector}
                       className="btn-primary flex-1"
                     >
                       Connect
@@ -386,7 +435,7 @@ export default function MCPTesting() {
               <div className="flex justify-end space-x-2 mt-4">
                 <button
                   onClick={sendHttpRequest}
-                  disabled={!selectedTenant || isLoading}
+                  disabled={!selectedTenant || !selectedConnector || isLoading}
                   className="btn-secondary"
                 >
                   {isLoading ? (

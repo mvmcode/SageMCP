@@ -12,9 +12,10 @@ from .server import MCPServer
 class MCPTransport:
     """Transport layer for MCP communication."""
 
-    def __init__(self, tenant_slug: str):
+    def __init__(self, tenant_slug: str, connector_id: str = None):
         self.tenant_slug = tenant_slug
-        self.mcp_server = MCPServer(tenant_slug)
+        self.connector_id = connector_id
+        self.mcp_server = MCPServer(tenant_slug, connector_id)
         self.initialized = False
 
     async def initialize(self) -> bool:

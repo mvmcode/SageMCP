@@ -16,15 +16,17 @@ from ..connectors.registry import connector_registry
 class MCPServer:
     """Multi-tenant MCP server implementation."""
 
-    def __init__(self, tenant_slug: str):
+    def __init__(self, tenant_slug: str, connector_id: str = None):
         self.tenant_slug = tenant_slug
+        self.connector_id = connector_id
         self.tenant: Optional[Tenant] = None
-        self.connectors: List[Connector] = []
+        self.connector: Optional[Connector] = None  # Single connector
+        self.connectors: List[Connector] = []  # For backward compatibility, will contain single connector
         self.server = Server("sage-mcp")
         self._setup_handlers()
 
     async def initialize(self) -> bool:
-        """Initialize the MCP server for a specific tenant."""
+        """Initialize the MCP server for a specific connector."""
         async with get_db_context() as session:
             # Load tenant
             tenant = await self._get_tenant(session, self.tenant_slug)
@@ -33,8 +35,17 @@ class MCPServer:
 
             self.tenant = tenant
 
-            # Load enabled connectors for this tenant
-            self.connectors = await self._get_tenant_connectors(session, tenant.id)
+            # Load specific connector by ID
+            if self.connector_id:
+                connector = await self._get_connector_by_id(session, self.connector_id, tenant.id)
+                if not connector or not connector.is_enabled:
+                    return False
+
+                self.connector = connector
+                self.connectors = [connector]  # For backward compatibility with existing handlers
+            else:
+                # Fallback: Load all enabled connectors for this tenant (for backward compatibility)
+                self.connectors = await self._get_tenant_connectors(session, tenant.id)
 
             return True
 
@@ -147,6 +158,24 @@ class MCPServer:
 
         result = await session.execute(
             select(Tenant).where(Tenant.slug == tenant_slug)
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_connector_by_id(self, session: AsyncSession, connector_id: str, tenant_id: str) -> Optional[Connector]:
+        """Get a specific connector by ID."""
+        from sqlalchemy import select
+        import uuid
+
+        try:
+            connector_uuid = uuid.UUID(connector_id)
+        except ValueError:
+            return None
+
+        result = await session.execute(
+            select(Connector).where(
+                Connector.id == connector_uuid,
+                Connector.tenant_id == tenant_id
+            )
         )
         return result.scalar_one_or_none()
 
