@@ -180,13 +180,12 @@ class TestOAuthAPI:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) >= 3
+        assert len(data) >= 2
 
         # Get provider IDs
         provider_ids = [p["id"] for p in data]
         assert "github" in provider_ids
-        assert "gitlab" in provider_ids
-        assert "google" in provider_ids
+        assert "slack" in provider_ids
 
         # Check GitHub provider structure
         github = next(p for p in data if p["id"] == "github")

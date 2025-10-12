@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
-import { X, Github, Gitlab, MessageSquare, Zap, Key } from 'lucide-react'
+import { X, Key } from 'lucide-react'
 import { tenantsApi, connectorsApi } from '@/utils/api'
 import { ConnectorType, ConnectorCreate } from '@/types'
 import { cn } from '@/utils/cn'
+import { GitHubLogo, SlackLogo } from './icons/BrandLogos'
 
 const connectorSchema = z.object({
   tenant_slug: z.string().min(1, 'Please select a tenant'),
@@ -31,40 +32,30 @@ const ConnectorTypeCard = ({
   disabled?: boolean
   onSelect: (type: ConnectorType) => void
 }) => {
-  const configs = {
+  // Only include implemented connector types
+  const configs: Record<string, {
+    icon: React.ComponentType<{ className?: string }>
+    name: string
+    description: string
+    color: string
+  }> = {
     [ConnectorType.GITHUB]: {
-      icon: Github,
+      icon: GitHubLogo,
       name: 'GitHub',
       description: 'Connect to GitHub repositories and issues',
       color: 'bg-gray-900 text-white',
     },
-    [ConnectorType.GITLAB]: {
-      icon: Gitlab,
-      name: 'GitLab',
-      description: 'Connect to GitLab projects and merge requests',
-      color: 'bg-orange-500 text-white',
-    },
     [ConnectorType.SLACK]: {
-      icon: MessageSquare,
+      icon: SlackLogo,
       name: 'Slack',
       description: 'Connect to Slack channels and messages',
       color: 'bg-purple-600 text-white',
     },
-    [ConnectorType.DISCORD]: {
-      icon: MessageSquare,
-      name: 'Discord',
-      description: 'Connect to Discord servers and channels',
-      color: 'bg-indigo-600 text-white',
-    },
-    [ConnectorType.CUSTOM]: {
-      icon: Zap,
-      name: 'Custom',
-      description: 'Build your own custom connector',
-      color: 'bg-gray-600 text-white',
-    },
   }
 
   const config = configs[type]
+  if (!config) return null // Return null if connector type is not implemented
+
   const Icon = config.icon
 
   return (
@@ -173,7 +164,7 @@ export default function ConnectorModal({
   }
 
   const requiresOAuth = (type: ConnectorType) => {
-    return [ConnectorType.GITHUB, ConnectorType.GITLAB].includes(type)
+    return [ConnectorType.GITHUB, ConnectorType.SLACK].includes(type)
   }
 
   const onSubmit = (data: ConnectorFormData) => {
@@ -216,7 +207,8 @@ export default function ConnectorModal({
           <div className="px-6 py-4 max-h-[calc(90vh-120px)] overflow-y-auto">
             {step === 'type' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.values(ConnectorType).map((type) => (
+                {/* Only show implemented connector types */}
+                {[ConnectorType.GITHUB, ConnectorType.SLACK].map((type) => (
                   <ConnectorTypeCard
                     key={type}
                     type={type}

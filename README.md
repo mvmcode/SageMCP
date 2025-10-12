@@ -124,17 +124,47 @@ http://localhost:8000/api/v1/{tenant-slug}/mcp
 
 ### Available GitHub Tools
 
-Once GitHub OAuth is configured, you'll have access to:
+Once GitHub OAuth is configured, you'll have access to **24 comprehensive tools**:
 
-- `github_list_repositories` - List accessible repositories
-- `github_get_repository` - Get repository details  
-- `github_list_issues` - List repository issues
-- `github_get_file_content` - Get file content from repos
-- `github_list_pull_requests` - List pull requests
-- `github_search_repositories` - Search repositories
+**Repository Management (6 tools):**
+- `github_list_repositories` - List accessible repositories with filters
+- `github_get_repository` - Get detailed repository information
+- `github_search_repositories` - Search repositories by query
+- `github_get_repo_stats` - Get repository statistics and languages
+- `github_list_contributors` - List contributors with contribution counts
+- `github_get_file_content` - Get file content from repositories
+
+**Commits & Code Changes (3 tools):**
+- `github_list_commits` - List commits with filters (author, date, path)
+- `github_get_commit` - Get commit details including diffs and stats
+- `github_compare_commits` - Compare branches or commits
+
+**Branch Management (2 tools):**
+- `github_list_branches` - List repository branches
+- `github_get_branch` - Get branch details and protection status
+
+**Issues & Pull Requests (2 tools):**
+- `github_list_issues` - List repository issues with filters
+- `github_list_pull_requests` - List pull requests with filters
+
+**User Information & Activity (4 tools):**
+- `github_get_user_info` - Get user profile and repositories
+- `github_get_user_stats` - Get comprehensive user statistics
+- `github_get_user_activity` - Get recent user activity events
+- `github_list_organizations` - List user's organizations
+
+**GitHub Actions / Workflows (3 tools):**
+- `github_list_workflows` - List repository workflows
+- `github_list_workflow_runs` - List workflow run history
+- `github_get_workflow_run` - Get detailed workflow run information
+
+**Releases (2 tools):**
+- `github_list_releases` - List repository releases
+- `github_get_release` - Get release details and assets
+
+**OAuth & Debugging (2 tools):**
 - `github_check_token_scopes` - Debug OAuth token permissions
 - `github_list_organizations` - List accessible organizations
-- `github_get_user_info` - Get user information
 
 ### API Usage (Alternative)
 
@@ -289,12 +319,6 @@ pytest tests/ -v --cov=src/sage_mcp --cov-report=term
 # Run specific test
 pytest tests/unit/test_config.py -v
 ```
-
-**Test Requirements:**
-- ✅ All tests pass (40/40)
-- ✅ Minimum 35% code coverage
-- ✅ Flake8 linting passes
-- ✅ No external services required (SQLite in-memory)
 
 ### CI/CD Workflows
 

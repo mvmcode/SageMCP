@@ -22,6 +22,7 @@ from ..models.tenant import Tenant
 router = APIRouter()
 
 # OAuth provider configurations
+# Only include providers that have implemented connectors
 OAUTH_PROVIDERS = {
     "github": {
         "name": "GitHub",
@@ -42,44 +43,31 @@ OAUTH_PROVIDERS = {
             else None
         ),
     },
-    "gitlab": {
-        "name": "GitLab",
-        "auth_url": "https://gitlab.com/oauth/authorize",
-        "token_url": "https://gitlab.com/oauth/token",
-        "user_url": "https://gitlab.com/api/v4/user",
-        "scopes": ["api", "read_user"],
-        "client_id": (
-            os.getenv("GITLAB_CLIENT_ID")
-            if os.getenv("GITLAB_CLIENT_ID")
-            and os.getenv("GITLAB_CLIENT_ID") != "your-gitlab-client-id"
-            else None
-        ),
-        "client_secret": (
-            os.getenv("GITLAB_CLIENT_SECRET")
-            if os.getenv("GITLAB_CLIENT_SECRET")
-            and os.getenv("GITLAB_CLIENT_SECRET") != "your-gitlab-client-secret"
-            else None
-        ),
-    },
-    "google": {
-        "name": "Google",
-        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
-        "token_url": "https://oauth2.googleapis.com/token",
-        "user_url": "https://www.googleapis.com/oauth2/v2/userinfo",
+    "slack": {
+        "name": "Slack",
+        "auth_url": "https://slack.com/oauth/v2/authorize",
+        "token_url": "https://slack.com/api/oauth.v2.access",
+        "user_url": "https://slack.com/api/auth.test",
         "scopes": [
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/userinfo.email"
+            "channels:history",
+            "channels:read",
+            "chat:write",
+            "users:read",
+            "reactions:write",
+            "reactions:read",
+            "search:read",
+            "team:read"
         ],
         "client_id": (
-            os.getenv("GOOGLE_CLIENT_ID")
-            if os.getenv("GOOGLE_CLIENT_ID")
-            and os.getenv("GOOGLE_CLIENT_ID") != "your-google-client-id"
+            os.getenv("SLACK_CLIENT_ID")
+            if os.getenv("SLACK_CLIENT_ID")
+            and os.getenv("SLACK_CLIENT_ID") != "your-slack-client-id"
             else None
         ),
         "client_secret": (
-            os.getenv("GOOGLE_CLIENT_SECRET")
-            if os.getenv("GOOGLE_CLIENT_SECRET")
-            and os.getenv("GOOGLE_CLIENT_SECRET") != "your-google-client-secret"
+            os.getenv("SLACK_CLIENT_SECRET")
+            if os.getenv("SLACK_CLIENT_SECRET")
+            and os.getenv("SLACK_CLIENT_SECRET") != "your-slack-client-secret"
             else None
         ),
     }
@@ -384,12 +372,10 @@ async def oauth_callback(
     if provider == "github":
         provider_user_id = str(user_info["id"])
         provider_username = user_info["login"]
-    elif provider == "gitlab":
-        provider_user_id = str(user_info["id"])
-        provider_username = user_info["username"]
-    elif provider == "google":
-        provider_user_id = user_info["id"]
-        provider_username = user_info.get("name", user_info.get("email"))
+    elif provider == "slack":
+        # Slack OAuth v2 returns user_id in the auth.test response
+        provider_user_id = user_info.get("user_id", user_info.get("user"))
+        provider_username = user_info.get("user", provider_user_id)
     else:
         provider_user_id = str(user_info.get("id", "unknown"))
         provider_username = user_info.get(

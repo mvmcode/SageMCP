@@ -104,7 +104,10 @@ jobs:
 
     - name: Install dependencies
       working-directory: frontend
-      run: npm ci
+      run: |
+        npm ci --include=optional
+        # Workaround for rollup optional dependencies issue
+        npm install --no-save @rollup/rollup-linux-x64-gnu
 
     - name: Run type checking
       working-directory: frontend

@@ -137,18 +137,15 @@ export default function Dashboard() {
                   <p className="text-xs text-gray-500">Create and configure tenants</p>
                 </div>
               </Link>
-              
-              <Link
-                to="/connectors"
-                className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
-              >
-                <Plug className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+
+              <div className="flex items-center p-3 bg-primary-50 rounded-lg border-2 border-primary-100">
+                <Plug className="h-5 w-5 text-primary-600" />
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-900">Setup Connectors</p>
-                  <p className="text-xs text-gray-500">Configure integrations</p>
+                  <p className="text-sm font-medium text-primary-900">Configure Connectors</p>
+                  <p className="text-xs text-primary-700">Access via tenant settings</p>
                 </div>
-              </Link>
-              
+              </div>
+
               <Link
                 to="/mcp-test"
                 className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"

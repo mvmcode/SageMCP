@@ -1,15 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { 
-  Key, 
-  ExternalLink, 
-  Trash2, 
-  Clock, 
-  CheckCircle, 
+import {
+  Key,
+  ExternalLink,
+  Trash2,
+  Clock,
+  CheckCircle,
   XCircle,
-  Github,
-  Gitlab,
   Settings,
   Wrench
 } from 'lucide-react'
@@ -17,14 +15,14 @@ import { oauthApi } from '@/utils/api'
 import { OAuthProvider, OAuthCredential, OAuthConfig } from '@/types'
 import { cn } from '@/utils/cn'
 import OAuthConfigModal from './OAuthConfigModal'
+import { GitHubLogo, SlackLogo } from './icons/BrandLogos'
 
 const ProviderIcon = ({ provider }: { provider: string }) => {
   const icons = {
-    github: Github,
-    gitlab: Gitlab,
-    google: Settings, // Use Settings as placeholder for Google
+    github: GitHubLogo,
+    slack: SlackLogo,
   }
-  
+
   const Icon = icons[provider as keyof typeof icons] || Settings
   return <Icon className="h-5 w-5" />
 }
@@ -241,8 +239,7 @@ export default function OAuthManager({ tenantSlug, onCredentialChange, filterPro
                   <div className={cn(
                     'p-2 rounded-lg',
                     provider.id === 'github' ? 'bg-gray-900 text-white' :
-                    provider.id === 'gitlab' ? 'bg-orange-500 text-white' :
-                    provider.id === 'google' ? 'bg-blue-500 text-white' :
+                    provider.id === 'slack' ? 'bg-purple-600 text-white' :
                     'bg-gray-600 text-white'
                   )}>
                     <ProviderIcon provider={provider.id} />
