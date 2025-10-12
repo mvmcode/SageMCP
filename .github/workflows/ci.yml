@@ -64,9 +64,19 @@ jobs:
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
+    - name: Clean npm cache (if needed)
+      working-directory: frontend
+      run: |
+        if [ -f package-lock.json ]; then
+          echo "package-lock.json exists"
+        fi
+
     - name: Install frontend dependencies
       working-directory: frontend
-      run: npm ci
+      run: |
+        npm ci --include=optional
+        # Workaround for rollup optional dependencies issue
+        npm install --no-save @rollup/rollup-linux-x64-gnu
 
     - name: Run frontend linting
       working-directory: frontend
