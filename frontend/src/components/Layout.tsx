@@ -97,7 +97,12 @@ export default function Layout({ children }: LayoutProps = {}) {
             })}
           </nav>
           <div className="p-6 border-t border-gray-200">
-            <div className="flex items-center">
+            <a
+              href="https://github.com/mvmcode/SageMCP/discussions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+            >
               <div className="h-8 w-8 bg-gray-300 rounded-full flex items-center justify-center">
                 <HelpCircle className="h-4 w-4 text-gray-600" />
               </div>
@@ -105,7 +110,7 @@ export default function Layout({ children }: LayoutProps = {}) {
                 <p className="text-sm font-medium text-gray-700">Support</p>
                 <p className="text-xs text-gray-500">Get help & feedback</p>
               </div>
-            </div>
+            </a>
           </div>
         </div>
       </div>
