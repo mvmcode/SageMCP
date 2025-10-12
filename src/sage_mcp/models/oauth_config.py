@@ -13,7 +13,7 @@ class OAuthConfig(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    provider = Column(String(50), nullable=False)  # github, gitlab, google
+    provider = Column(String(50), nullable=False)  # github, slack
     client_id = Column(String(255), nullable=False)
     client_secret = Column(Text, nullable=False)  # Encrypted in production
     is_active = Column(Boolean, default=True)

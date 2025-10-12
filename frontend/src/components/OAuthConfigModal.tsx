@@ -4,11 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { X, Github, Gitlab, Settings } from 'lucide-react'
+import { X, Settings } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { oauthApi } from '@/utils/api'
 import { OAuthConfigCreate } from '@/types'
 import { cn } from '@/utils/cn'
+import { GitHubLogo, SlackLogo } from './icons/BrandLogos'
 
 const oauthConfigSchema = z.object({
   provider: z.string().min(1, 'Provider is required'),
@@ -20,11 +21,10 @@ type OAuthConfigFormData = z.infer<typeof oauthConfigSchema>
 
 const ProviderIcon = ({ provider }: { provider: string }) => {
   const icons = {
-    github: Github,
-    gitlab: Gitlab,
-    google: Settings,
+    github: GitHubLogo,
+    slack: SlackLogo,
   }
-  
+
   const Icon = icons[provider as keyof typeof icons] || Settings
   return <Icon className="h-5 w-5" />
 }
@@ -148,8 +148,7 @@ export default function OAuthConfigModal({
               <div className={cn(
                 'p-2 rounded-lg',
                 provider === 'github' ? 'bg-gray-900 text-white' :
-                provider === 'gitlab' ? 'bg-orange-500 text-white' :
-                provider === 'google' ? 'bg-blue-500 text-white' :
+                provider === 'slack' ? 'bg-purple-600 text-white' :
                 'bg-gray-600 text-white'
               )}>
                 <ProviderIcon provider={provider} />

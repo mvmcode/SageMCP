@@ -1,14 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { 
-  Search, 
+import {
+  Search,
   Filter,
   Plus,
-  Github,
-  Gitlab,
-  MessageSquare,
-  Zap,
   Settings,
   ToggleLeft,
   ToggleRight,
@@ -20,17 +16,15 @@ import { tenantsApi, connectorsApi } from '@/utils/api'
 import { ConnectorType } from '@/types'
 import { cn } from '@/utils/cn'
 import ConnectorModal from '@/components/ConnectorModal'
+import { GitHubLogo, SlackLogo } from '@/components/icons/BrandLogos'
 
 const ConnectorIcon = ({ type }: { type: ConnectorType }) => {
-  const icons = {
-    [ConnectorType.GITHUB]: Github,
-    [ConnectorType.GITLAB]: Gitlab,
-    [ConnectorType.SLACK]: MessageSquare,
-    [ConnectorType.DISCORD]: MessageSquare,
-    [ConnectorType.CUSTOM]: Zap,
+  const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+    [ConnectorType.GITHUB]: GitHubLogo,
+    [ConnectorType.SLACK]: SlackLogo,
   }
-  
-  const Icon = icons[type] || Zap
+
+  const Icon = icons[type] || Settings
   return <Icon className="h-5 w-5" />
 }
 
@@ -170,13 +164,11 @@ const ConnectorTypeFilter = ({
   selected: ConnectorType | 'all'
   onChange: (type: ConnectorType | 'all') => void 
 }) => {
+  // Only show implemented connector types
   const types = [
     { value: 'all', label: 'All Types', icon: Filter },
-    { value: ConnectorType.GITHUB, label: 'GitHub', icon: Github },
-    { value: ConnectorType.GITLAB, label: 'GitLab', icon: Gitlab },
-    { value: ConnectorType.SLACK, label: 'Slack', icon: MessageSquare },
-    { value: ConnectorType.DISCORD, label: 'Discord', icon: MessageSquare },
-    { value: ConnectorType.CUSTOM, label: 'Custom', icon: Zap },
+    { value: ConnectorType.GITHUB, label: 'GitHub', icon: GitHubLogo },
+    { value: ConnectorType.SLACK, label: 'Slack', icon: SlackLogo },
   ]
 
   return (

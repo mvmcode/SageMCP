@@ -1,20 +1,19 @@
 import React from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { 
-  Building2, 
-  Plug, 
-  Activity, 
-  Settings, 
+import {
+  Building2,
+  Activity,
+  Settings,
   HelpCircle,
   Menu,
   X
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import logo from '@/assets/logo.svg'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Activity },
   { name: 'Tenants', href: '/tenants', icon: Building2 },
-  { name: 'Connectors', href: '/connectors', icon: Plug },
   { name: 'MCP Testing', href: '/mcp-test', icon: Settings },
 ]
 
@@ -37,9 +36,7 @@ export default function Layout({ children }: LayoutProps = {}) {
         <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg">
           <div className="flex h-16 items-center justify-between px-6">
             <Link to="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">S</span>
-              </div>
+              <img src={logo} alt="Sage MCP Logo" className="h-8 w-8 rounded-lg" />
               <span className="text-xl font-semibold text-gray-900">Sage MCP</span>
             </Link>
             <button onClick={() => setSidebarOpen(false)}>
@@ -75,9 +72,7 @@ export default function Layout({ children }: LayoutProps = {}) {
         <div className="flex min-h-0 flex-1 flex-col bg-white shadow-lg">
           <div className="flex h-16 items-center px-6 border-b border-gray-200">
             <Link to="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">S</span>
-              </div>
+              <img src={logo} alt="Sage MCP Logo" className="h-8 w-8 rounded-lg" />
               <span className="text-xl font-semibold text-gray-900">Sage MCP</span>
             </Link>
           </div>
