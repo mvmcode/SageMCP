@@ -100,7 +100,7 @@ jobs:
         EOF
 
     - name: Build and push backend image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         platforms: linux/amd64,linux/arm64
@@ -118,7 +118,7 @@ jobs:
           org.opencontainers.image.licenses=MIT
 
     - name: Build and push frontend image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: ./frontend
         platforms: linux/amd64,linux/arm64
