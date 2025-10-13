@@ -158,12 +158,12 @@ jobs:
         echo "DATABASE_URL=postgresql://sage_mcp:sage_mcp_password@postgres:5432/sage_mcp" > .env
         echo "SECRET_KEY=test-secret-key" >> .env
         echo "ENVIRONMENT=test" >> .env
-        docker-compose config
-        docker-compose up -d --build
+        docker compose config
+        docker compose up -d --build
         sleep 30
         curl -f http://localhost:8000/health
         curl -f http://localhost:3000
-        docker-compose down -v
+        docker compose down -v
 
   comment-coverage:
     name: Comment Coverage
