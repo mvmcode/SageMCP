@@ -53,10 +53,9 @@ OAUTH_PROVIDERS = {
             "channels:read",
             "chat:write",
             "users:read",
-            "reactions:write",
+            "team:read",
             "reactions:read",
-            "search:read",
-            "team:read"
+            "reactions:write"
         ],
         "client_id": (
             os.getenv("SLACK_CLIENT_ID")
@@ -177,23 +176,29 @@ async def initiate_oauth(
     state = secrets.token_urlsafe(32)
 
     # Build redirect URI
-    # For development, use localhost:3000 directly since we know the
-    # frontend port. In production, this would come from environment
-    # variables or proper proxy headers
-    base_url_str = str(request.base_url)
-    if 'localhost' in base_url_str and ':3000' not in base_url_str:
-        # Development mode - frontend is on localhost:3000
-        base_url = "http://localhost:3000"
-    else:
-        # Check for forwarded headers (for production)
-        forwarded_host = request.headers.get('x-forwarded-host')
-        forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
+    # Check if PUBLIC_URL is set in environment (useful for ngrok/tunnels)
+    public_url = os.getenv('PUBLIC_URL')
 
-        if forwarded_host:
-            base_url = f"{forwarded_proto}://{forwarded_host}"
+    if public_url:
+        base_url = public_url.rstrip('/')
+    else:
+        # For development, use localhost:3000 directly since we know the
+        # frontend port. In production, this would come from environment
+        # variables or proper proxy headers
+        base_url_str = str(request.base_url)
+        if 'localhost' in base_url_str and ':3000' not in base_url_str:
+            # Development mode - frontend is on localhost:3000
+            base_url = "http://localhost:3000"
         else:
-            # Fallback to request base URL
-            base_url = str(request.base_url).rstrip('/')
+            # Check for forwarded headers (for production)
+            forwarded_host = request.headers.get('x-forwarded-host')
+            forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
+
+            if forwarded_host:
+                base_url = f"{forwarded_proto}://{forwarded_host}"
+            else:
+                # Fallback to request base URL
+                base_url = str(request.base_url).rstrip('/')
 
     redirect_uri = (
         f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
@@ -292,23 +297,29 @@ async def oauth_callback(
         )
 
     # Build redirect URI (must match the one used in initiate_oauth)
-    # For development, use localhost:3000 directly since we know the
-    # frontend port. In production, this would come from environment
-    # variables or proper proxy headers
-    base_url_str = str(request.base_url)
-    if 'localhost' in base_url_str and ':3000' not in base_url_str:
-        # Development mode - frontend is on localhost:3000
-        base_url = "http://localhost:3000"
-    else:
-        # Check for forwarded headers (for production)
-        forwarded_host = request.headers.get('x-forwarded-host')
-        forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
+    # Check if PUBLIC_URL is set in environment (useful for ngrok/tunnels)
+    public_url = os.getenv('PUBLIC_URL')
 
-        if forwarded_host:
-            base_url = f"{forwarded_proto}://{forwarded_host}"
+    if public_url:
+        base_url = public_url.rstrip('/')
+    else:
+        # For development, use localhost:3000 directly since we know the
+        # frontend port. In production, this would come from environment
+        # variables or proper proxy headers
+        base_url_str = str(request.base_url)
+        if 'localhost' in base_url_str and ':3000' not in base_url_str:
+            # Development mode - frontend is on localhost:3000
+            base_url = "http://localhost:3000"
         else:
-            # Fallback to request base URL
-            base_url = str(request.base_url).rstrip('/')
+            # Check for forwarded headers (for production)
+            forwarded_host = request.headers.get('x-forwarded-host')
+            forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
+
+            if forwarded_host:
+                base_url = f"{forwarded_proto}://{forwarded_host}"
+            else:
+                # Fallback to request base URL
+                base_url = str(request.base_url).rstrip('/')
 
     redirect_uri = (
         f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
@@ -430,20 +441,25 @@ async def oauth_callback(
 
     # Redirect to frontend with success message
     # Use same logic as redirect URI generation for consistency
-    base_url_str = str(request.base_url)
-    if 'localhost' in base_url_str and ':3000' not in base_url_str:
-        # Development mode - frontend is on localhost:3000
-        frontend_url = "http://localhost:3000"
-    else:
-        # Check for forwarded headers (for production)
-        forwarded_host = request.headers.get('x-forwarded-host')
-        forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
+    public_url = os.getenv('PUBLIC_URL')
 
-        if forwarded_host:
-            frontend_url = f"{forwarded_proto}://{forwarded_host}"
+    if public_url:
+        frontend_url = public_url.rstrip('/')
+    else:
+        base_url_str = str(request.base_url)
+        if 'localhost' in base_url_str and ':3000' not in base_url_str:
+            # Development mode - frontend is on localhost:3000
+            frontend_url = "http://localhost:3000"
         else:
-            # Fallback to request base URL, try to replace 8000 with 3000
-            frontend_url = base_url_str.rstrip('/').replace(':8000', ':3000')
+            # Check for forwarded headers (for production)
+            forwarded_host = request.headers.get('x-forwarded-host')
+            forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
+
+            if forwarded_host:
+                frontend_url = f"{forwarded_proto}://{forwarded_host}"
+            else:
+                # Fallback to request base URL, try to replace 8000 with 3000
+                frontend_url = base_url_str.rstrip('/').replace(':8000', ':3000')
 
     success_url = (
         f"{frontend_url}/oauth/success?provider={provider}&"

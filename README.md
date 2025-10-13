@@ -212,6 +212,16 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/sage_mcp
 # Security
 SECRET_KEY=your-secret-key
 
+# Base URL Configuration
+BASE_URL=http://localhost:8000
+
+# Public URL (for OAuth callbacks with tunneling services like ngrok)
+# When using ngrok or similar tunneling services for OAuth testing,
+# set this to your public URL. If not set, the application will use
+# BASE_URL or detect from request headers.
+# Example: PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
+PUBLIC_URL=
+
 # OAuth - GitHub
 GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
@@ -223,16 +233,47 @@ GITLAB_CLIENT_SECRET=your-gitlab-client-secret
 # OAuth - Google
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# OAuth - Slack
+SLACK_CLIENT_ID=your-slack-client-id
+SLACK_CLIENT_SECRET=your-slack-client-secret
 ```
 
 ### OAuth Setup
+
+#### Using ngrok for OAuth Testing
+
+Some OAuth providers (like Slack) don't accept `localhost` or `http://` URLs for callback URLs. To test OAuth locally with these providers, use ngrok:
+
+1. **Install and start ngrok**:
+   ```bash
+   # Install ngrok (https://ngrok.com/download)
+   # Start ngrok tunnel to your frontend
+   ngrok http 3000
+   ```
+
+2. **Configure PUBLIC_URL**:
+   ```bash
+   # Add to your .env file
+   PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
+   ```
+
+3. **Restart the application**:
+   ```bash
+   docker-compose down
+   docker-compose up -d
+   ```
+
+4. **Update OAuth app settings**: Use your ngrok URL in the OAuth provider's callback URL settings
+
+**Note**: The `PUBLIC_URL` environment variable ensures that OAuth redirect URIs use your public ngrok URL instead of localhost, which is required by providers like Slack.
 
 #### GitHub
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Create a new OAuth App with these settings:
    - **Application name**: Your app name
-   - **Homepage URL**: `http://localhost:3000`
-   - **Authorization callback URL**: `http://localhost:3000/oauth/success`
+   - **Homepage URL**: `http://localhost:3000` (or your ngrok URL)
+   - **Authorization callback URL**: `http://localhost:3000/oauth/success` (or your ngrok URL + `/oauth/success`)
 3. Copy Client ID and Client Secret to your `.env` file
 4. **Important**: For organization repositories, ensure your OAuth app has organization access:
    - Organization Settings > Third-party access > Grant access to your OAuth app
@@ -242,8 +283,27 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 #### GitLab
 1. Go to GitLab Settings > Applications
 2. Create a new application
-3. Set Redirect URI to: `http://localhost:8000/api/v1/oauth/{tenant}/callback/gitlab`
+3. Set Redirect URI to: `http://localhost:8000/api/v1/oauth/{tenant}/callback/gitlab` (or use your ngrok URL)
 4. Copy Application ID and Secret to your `.env` file
+
+#### Slack
+1. Go to [Slack API Dashboard](https://api.slack.com/apps)
+2. Create a new app or select an existing one
+3. Navigate to **OAuth & Permissions**
+4. Add Redirect URL: `https://your-ngrok-url.ngrok-free.app/api/v1/oauth/{tenant}/callback/slack`
+   - **Important**: Slack requires HTTPS URLs, so you must use ngrok or another tunneling service
+5. Under **Bot Token Scopes**, add these scopes:
+   - `channels:history`
+   - `channels:read`
+   - `chat:write`
+   - `users:read`
+   - `team:read`
+   - `reactions:read`
+   - `reactions:write`
+6. Copy **Client ID** and **Client Secret** to your `.env` file as `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`
+7. Install the app to your workspace
+
+**Important**: Make sure the scopes in your Slack app settings exactly match the scopes requested by the application.
 
 ## 🔌 Adding New Connectors
 

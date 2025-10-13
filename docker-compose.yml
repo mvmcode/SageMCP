@@ -35,6 +35,7 @@ services:
       - DATABASE_URL=postgresql://sage_mcp:password@postgres:5432/sage_mcp
       - SECRET_KEY=dev-secret-key-change-in-production
       - BASE_URL=http://localhost:8000
+      - PUBLIC_URL=${PUBLIC_URL:-}
       # OAuth settings (set these with your actual values)
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
