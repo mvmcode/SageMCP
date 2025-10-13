@@ -1,0 +1,262 @@
+# Default values for sagemcp
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+global:
+  storageClass: ""
+
+# Backend API configuration
+backend:
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/mvmcode/sagemcp/backend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    annotations: {}
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  env:
+    DEBUG: "false"
+    ENVIRONMENT: "production"
+    HOST: "0.0.0.0"
+    PORT: "8000"
+    MCP_SERVER_TIMEOUT: "30"
+    MCP_MAX_CONNECTIONS_PER_TENANT: "10"
+
+# Frontend configuration
+frontend:
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/mvmcode/sagemcp/frontend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  imagePullSecrets: []
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    fsGroup: 101
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+    annotations: {}
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: sagemcp.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls:
+    - secretName: sagemcp-tls
+      hosts:
+        - sagemcp.example.com
+
+# PostgreSQL configuration (using Bitnami chart)
+postgresql:
+  enabled: true
+  auth:
+    username: sage_mcp
+    password: changeme
+    database: sage_mcp
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# External PostgreSQL (when postgresql.enabled is false)
+externalDatabase:
+  host: ""
+  port: 5432
+  username: sage_mcp
+  password: ""
+  database: sage_mcp
+  sslMode: require
+
+# Redis configuration (using Bitnami chart)
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# External Redis (when redis.enabled is false)
+externalRedis:
+  host: ""
+  port: 6379
+  password: ""
+  database: 0
+
+# Application secrets
+secrets:
+  # Generate with: openssl rand -base64 32
+  secretKey: "change-me-to-a-secure-random-string"
+
+  # OAuth credentials
+  github:
+    clientId: ""
+    clientSecret: ""
+
+  slack:
+    clientId: ""
+    clientSecret: ""
+
+# Application configuration
+config:
+  # Base URL for the API (used for OAuth callbacks)
+  baseUrl: "https://sagemcp.example.com"
+
+  # Frontend URL (for OAuth redirects after success)
+  frontendUrl: "https://sagemcp.example.com"
+
+  # Token expiration settings
+  accessTokenExpireMinutes: 30
+  refreshTokenExpireDays: 7
