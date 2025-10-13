@@ -1,0 +1,28 @@
+apiVersion: v2
+name: sagemcp
+description: A Helm chart for SageMCP - Multi-tenant MCP Platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - mcp
+  - multi-tenant
+  - ai
+  - llm
+  - model-context-protocol
+home: https://github.com/mvmcode/SageMCP
+sources:
+  - https://github.com/mvmcode/SageMCP
+maintainers:
+  - name: mvmcode
+    url: https://github.com/mvmcode
+icon: https://raw.githubusercontent.com/mvmcode/SageMCP/main/frontend/src/assets/logo.svg
+dependencies:
+  - name: postgresql
+    version: "~12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "~17.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sagemcp.fullname" . }}-config
+  labels:
+    {{- include "sagemcp.labels" . | nindent 4 }}
+data:
+  base-url: {{ .Values.config.baseUrl | quote }}
+  frontend-url: {{ .Values.config.frontendUrl | quote }}
+  access-token-expire-minutes: {{ .Values.config.accessTokenExpireMinutes | quote }}
+  refresh-token-expire-days: {{ .Values.config.refreshTokenExpireDays | quote }}
