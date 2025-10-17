@@ -19,8 +19,10 @@ class DatabaseManager:
 
     def initialize(self):
         """Initialize database engine and session factory."""
+        # Get the appropriate database URL based on provider
+        database_url = self.settings.get_database_url()
+        
         # Convert postgres:// to postgresql+asyncpg://
-        database_url = str(self.settings.database_url)
         if database_url.startswith("postgresql://"):
             database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif database_url.startswith("postgres://"):

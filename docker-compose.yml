@@ -32,10 +32,15 @@ services:
       - ENVIRONMENT=development
       - HOST=0.0.0.0
       - PORT=8000
+      - DATABASE_PROVIDER=${DATABASE_PROVIDER:-postgresql}
       - DATABASE_URL=postgresql://sage_mcp:password@postgres:5432/sage_mcp
       - SECRET_KEY=dev-secret-key-change-in-production
       - BASE_URL=http://localhost:8000
       - PUBLIC_URL=${PUBLIC_URL:-}
+      # Supabase configuration (only needed if DATABASE_PROVIDER=supabase)
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
       # OAuth settings (set these with your actual values)
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}

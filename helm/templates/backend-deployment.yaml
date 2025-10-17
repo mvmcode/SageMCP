@@ -79,8 +79,26 @@ spec:
               value: {{ .Values.backend.env.HOST | quote }}
             - name: PORT
               value: {{ .Values.backend.env.PORT | quote }}
+            - name: DATABASE_PROVIDER
+              value: {{ .Values.database.provider | quote }}
             - name: DATABASE_URL
               value: {{ include "sagemcp.postgresql.connectionString" . | quote }}
+            {{- if eq .Values.database.provider "supabase" }}
+            - name: SUPABASE_URL
+              value: {{ .Values.supabase.url | quote }}
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sagemcp.fullname" . }}-secret
+                  key: supabase-anon-key
+                  optional: true
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sagemcp.fullname" . }}-secret
+                  key: supabase-service-role-key
+                  optional: true
+            {{- end }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
