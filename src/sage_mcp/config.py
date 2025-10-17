@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     supabase_url: Optional[str] = Field(default=None, env="SUPABASE_URL")
     supabase_anon_key: Optional[str] = Field(default=None, env="SUPABASE_ANON_KEY")
     supabase_service_role_key: Optional[str] = Field(default=None, env="SUPABASE_SERVICE_ROLE_KEY")
+    supabase_database_password: Optional[str] = Field(default=None, env="SUPABASE_DATABASE_PASSWORD")
 
     # Security
     secret_key: str = Field(env="SECRET_KEY")
@@ -117,9 +118,10 @@ class Settings(BaseSettings):
                 match = re.match(r'https://([^.]+)\.supabase\.co', self.supabase_url)
                 if match:
                     project_id = match.group(1)
-                    # Use service role key as password for direct database access
-                    password = self.supabase_service_role_key or "postgres"
-                    return f"postgresql://postgres:{password}@db.{project_id}.supabase.co:5432/postgres"
+                    # Use dedicated database password, fallback to service role key
+                    password = self.supabase_database_password or self.supabase_service_role_key or "postgres"
+                    # Use official Supabase connection pooler (SSL handled in connect_args)
+                    return f"postgresql://postgres.{project_id}:{password}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
             
             # Fallback to DATABASE_URL if Supabase URL not available
             return self.database_url
