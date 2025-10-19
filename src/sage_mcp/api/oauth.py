@@ -182,13 +182,13 @@ async def initiate_oauth(
     if public_url:
         base_url = public_url.rstrip('/')
     else:
-        # For development, use localhost:3000 directly since we know the
+        # For development, use localhost:3001 directly since we know the
         # frontend port. In production, this would come from environment
         # variables or proper proxy headers
         base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3000' not in base_url_str:
-            # Development mode - frontend is on localhost:3000
-            base_url = "http://localhost:3000"
+        if 'localhost' in base_url_str and ':3001' not in base_url_str:
+            # Development mode - frontend is on localhost:3001
+            base_url = "http://localhost:3001"
         else:
             # Check for forwarded headers (for production)
             forwarded_host = request.headers.get('x-forwarded-host')
@@ -303,13 +303,13 @@ async def oauth_callback(
     if public_url:
         base_url = public_url.rstrip('/')
     else:
-        # For development, use localhost:3000 directly since we know the
+        # For development, use localhost:3001 directly since we know the
         # frontend port. In production, this would come from environment
         # variables or proper proxy headers
         base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3000' not in base_url_str:
-            # Development mode - frontend is on localhost:3000
-            base_url = "http://localhost:3000"
+        if 'localhost' in base_url_str and ':3001' not in base_url_str:
+            # Development mode - frontend is on localhost:3001
+            base_url = "http://localhost:3001"
         else:
             # Check for forwarded headers (for production)
             forwarded_host = request.headers.get('x-forwarded-host')
@@ -447,9 +447,9 @@ async def oauth_callback(
         frontend_url = public_url.rstrip('/')
     else:
         base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3000' not in base_url_str:
-            # Development mode - frontend is on localhost:3000
-            frontend_url = "http://localhost:3000"
+        if 'localhost' in base_url_str and ':3001' not in base_url_str:
+            # Development mode - frontend is on localhost:3001
+            frontend_url = "http://localhost:3001"
         else:
             # Check for forwarded headers (for production)
             forwarded_host = request.headers.get('x-forwarded-host')
@@ -458,8 +458,8 @@ async def oauth_callback(
             if forwarded_host:
                 frontend_url = f"{forwarded_proto}://{forwarded_host}"
             else:
-                # Fallback to request base URL, try to replace 8000 with 3000
-                frontend_url = base_url_str.rstrip('/').replace(':8000', ':3000')
+                # Fallback to request base URL, try to replace 8000 with 3001
+                frontend_url = base_url_str.rstrip('/').replace(':8000', ':3001')
 
     success_url = (
         f"{frontend_url}/oauth/success?provider={provider}&"

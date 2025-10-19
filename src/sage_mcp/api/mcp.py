@@ -3,7 +3,7 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException, Request, WebSocket
+from fastapi import APIRouter, HTTPException, Request, WebSocket, Response
 from fastapi.responses import StreamingResponse
 
 from ..mcp.transport import MCPTransport
@@ -37,6 +37,11 @@ async def mcp_http(tenant_slug: str, connector_id: str, request: Request):
 
     # Handle the message
     response = await transport.handle_http_message(message)
+
+    # For notifications (when response is None), return 204 No Content
+    # JSON-RPC notifications don't expect a response
+    if response is None:
+        return Response(status_code=204)
 
     return response
 

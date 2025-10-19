@@ -47,8 +47,10 @@ class MCPTransport:
                     # Handle the message through HTTP-style processing
                     response = await self.handle_http_message(message)
 
-                    # Send response back through WebSocket
-                    await websocket.send_text(json.dumps(response))
+                    # Send response back through WebSocket only if there is a response
+                    # (notifications return None and don't expect a response)
+                    if response is not None:
+                        await websocket.send_text(json.dumps(response))
 
                 except WebSocketDisconnect:
                     break
@@ -89,8 +91,10 @@ class MCPTransport:
                     # Process the message
                     response = await self.handle_http_message(message)
 
-                    # Send response back through the queue
-                    await messages.put(response)
+                    # Send response back through the queue only if there is a response
+                    # (notifications return None and don't expect a response)
+                    if response is not None:
+                        await messages.put(response)
 
                 except Exception as e:
                     print(f"SSE message processing error: {e}")
@@ -121,6 +125,27 @@ class MCPTransport:
             method = message.get("method")
             message_id = message.get("id")
             params = message.get("params", {})
+
+            # Handle notifications (messages with no id or id=null)
+            # Notifications don't expect a response
+            if message_id is None:
+                # Handle notification methods
+                if method == "notifications/initialized":
+                    # Client has finished initialization, no response needed
+                    return None
+                elif method and method.startswith("notifications/"):
+                    # Other notifications - don't respond
+                    return None
+                # If it's not a notification method but has null id, treat it as malformed
+                else:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": None,
+                        "error": {
+                            "code": -32600,
+                            "message": "Invalid Request: missing id for non-notification method"
+                        }
+                    }
 
             if method == "initialize":
                 # Handle initialization - use the client's protocol version
