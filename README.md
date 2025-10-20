@@ -12,9 +12,9 @@ A scalable, multi-tenant platform for hosting MCP (Model Context Protocol) serve
   - ✅ **GitHub** - Full repository access, issues, PRs, file content, search
   - 🚧 GitLab, Google Docs, Notion (coming soon)
 - **Web Management Interface**: React-based frontend for tenant and connector management
-- **PostgreSQL Database**: Robust data persistence with SQLAlchemy
+- **Flexible Database Support**: PostgreSQL and Supabase with robust data persistence using SQLAlchemy
 - **Docker Support**: Complete containerization for development and production
-- **Kubernetes Ready**: Helm charts for AWS EKS deployment
+- **Kubernetes Ready**: Helm charts for cloud deployment with database provider flexibility
 - **Admin API**: RESTful API for tenant and connector management
 - **Real-time Debugging**: Token scope checking and connection diagnostics
 
@@ -31,8 +31,8 @@ A scalable, multi-tenant platform for hosting MCP (Model Context Protocol) serve
 │ (Web Interface) │    │                 │    └─────────────────┘
 └─────────────────┘    │  ┌───────────┐  │    
                        │  │OAuth Flow │  │    ┌─────────────────┐
-┌─────────────────┐    │  │ & Tokens  │  │◄──►│   PostgreSQL    │
-│  OAuth Provider │◄──►│  └───────────┘  │    │    Database     │
+┌─────────────────┐    │  │ & Tokens  │  │◄──►│ PostgreSQL/     │
+│  OAuth Provider │◄──►│  └───────────┘  │    │   Supabase      │
 │ (GitHub, etc)   │    └─────────────────┘    └─────────────────┘
 └─────────────────┘
 ```
@@ -43,7 +43,7 @@ A scalable, multi-tenant platform for hosting MCP (Model Context Protocol) serve
 
 - Docker and Docker Compose
 - Python 3.11+ (for local development)
-- PostgreSQL (included in Docker setup)
+- Database: PostgreSQL (included in Docker setup) or Supabase (hosted)
 
 ### Quick Start with Docker
 
@@ -195,6 +195,42 @@ curl -X POST "http://localhost:8000/api/v1/admin/tenants/acme-corp/connectors" \
 
 ## 🔧 Configuration
 
+### Database Setup Options
+
+#### Option 1: PostgreSQL (Default)
+Use the included PostgreSQL Docker container for local development:
+
+```bash
+# Default configuration (already in .env)
+DATABASE_PROVIDER=postgresql
+DATABASE_URL=postgresql://sage_mcp:password@localhost:5432/sage_mcp
+```
+
+#### Option 2: Supabase (Hosted PostgreSQL)
+Use Supabase as a managed PostgreSQL alternative:
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+2. **Configure your environment**:
+   ```bash
+   # Update your .env file
+   DATABASE_PROVIDER=supabase
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   # SUPABASE_ANON_KEY is optional for direct database access
+   ```
+3. **Disable local PostgreSQL** in docker-compose (optional):
+   ```bash
+   # Comment out postgres service dependencies if using Supabase
+   docker-compose up app frontend -d
+   ```
+
+**Benefits of Supabase:**
+- ✅ Hosted PostgreSQL with automatic backups
+- ✅ Built-in authentication and real-time features
+- ✅ Global CDN and edge functions
+- ✅ Automatic SSL and security
+- ✅ No local database setup required
+
 ### Environment Variables
 
 ```bash
@@ -204,8 +240,14 @@ ENVIRONMENT=development
 HOST=0.0.0.0
 PORT=8000
 
-# Database
+# Database Configuration
+DATABASE_PROVIDER=postgresql  # Options: postgresql, supabase
 DATABASE_URL=postgresql://user:pass@localhost:5432/sage_mcp
+
+# Supabase Configuration (only needed if DATABASE_PROVIDER=supabase)
+# SUPABASE_URL=https://your-project.supabase.co
+# SUPABASE_ANON_KEY=your-anon-key
+# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Note: Redis dependency has been removed for simplicity
 
@@ -361,7 +403,29 @@ make up
 
 ### Kubernetes (Production)
 
-*Coming soon - Helm charts for AWS EKS deployment*
+The project includes comprehensive Helm charts for production deployment with flexible database options:
+
+#### Deploy with PostgreSQL
+```bash
+# Install with default PostgreSQL
+helm install sage-mcp ./helm
+```
+
+#### Deploy with Supabase
+```bash
+# Install with Supabase backend
+helm install sage-mcp ./helm \
+  --set database.provider=supabase \
+  --set postgresql.enabled=false \
+  --set supabase.url=https://your-project.supabase.co \
+  --set supabase.serviceRoleKey=your-service-role-key
+```
+
+**Helm Configuration Options:**
+- `database.provider`: `postgresql` or `supabase`
+- `postgresql.enabled`: Enable/disable PostgreSQL chart dependency
+- `supabase.url`: Your Supabase project URL
+- `supabase.serviceRoleKey`: Supabase service role key for database access
 
 ## 🛠️ Development
 
@@ -503,6 +567,8 @@ Apache 2.0 License - see LICENSE file for details.
 - GitHub connector with full OAuth integration
 - React-based management interface
 - Claude Desktop compatible MCP protocol
+- Flexible database backends (PostgreSQL/Supabase)
+- Production-ready Helm charts with database provider options
 - Organization repository access
 - Real-time debugging and diagnostics
 
@@ -511,9 +577,12 @@ Apache 2.0 License - see LICENSE file for details.
 - Google Docs connector
 - Notion connector
 - Advanced connector configuration
-- Kubernetes Helm charts
+- Additional database providers (MongoDB, DynamoDB)
 
 **📈 Recent Updates:**
+- ✅ **Supabase Support** - Added hosted PostgreSQL alternative with intelligent URL generation
+- ✅ **Flexible Database Configuration** - Support for both PostgreSQL and Supabase backends
+- ✅ **Enhanced Helm Charts** - Production deployment with database provider options
 - ✅ **All tests passing (40/40)** with SQLite in-memory database
 - ✅ Simplified CI/CD with no PostgreSQL service required
 - ✅ Improved test coverage (41%) and automated quality checks

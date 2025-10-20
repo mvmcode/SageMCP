@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 # Set test environment variables BEFORE importing the app
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["DATABASE_PROVIDER"] = "postgresql"  # Use postgresql for tests (even with SQLite)
 os.environ["ENVIRONMENT"] = "test"
 
 from sage_mcp.main import app
