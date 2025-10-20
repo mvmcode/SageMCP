@@ -47,8 +47,10 @@ class MCPTransport:
                     # Handle the message through HTTP-style processing
                     response = await self.handle_http_message(message)
 
-                    # Send response back through WebSocket
-                    await websocket.send_text(json.dumps(response))
+                    # Send response back through WebSocket only if there is a response
+                    # (notifications return None and don't expect a response)
+                    if response is not None:
+                        await websocket.send_text(json.dumps(response))
 
                 except WebSocketDisconnect:
                     break
@@ -89,8 +91,10 @@ class MCPTransport:
                     # Process the message
                     response = await self.handle_http_message(message)
 
-                    # Send response back through the queue
-                    await messages.put(response)
+                    # Send response back through the queue only if there is a response
+                    # (notifications return None and don't expect a response)
+                    if response is not None:
+                        await messages.put(response)
 
                 except Exception as e:
                     print(f"SSE message processing error: {e}")
@@ -121,6 +125,40 @@ class MCPTransport:
             method = message.get("method")
             message_id = message.get("id")
             params = message.get("params", {})
+
+            # DEBUG: Log incoming message
+            print(f"DEBUG: Received message: method={method}, id={message_id}, has_id_key={'id' in message}")
+
+            # Handle notifications (messages with no id or id=null)
+            # Per JSON-RPC spec, notifications don't expect responses, but Claude's
+            # HTTP transport requires valid JSON-RPC responses with an id field
+            if message_id is None or ('id' not in message):
+                # Handle notification methods - return success acknowledgment
+                # Use id=1 as a placeholder since notifications don't have ids but Claude requires one
+                if method == "notifications/initialized":
+                    # Client has finished initialization
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "result": {}
+                    }
+                elif method and method.startswith("notifications/"):
+                    # Other notifications - acknowledge receipt
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "result": {}
+                    }
+                # If it's not a notification method but has null id, treat it as malformed
+                else:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "error": {
+                            "code": -32600,
+                            "message": "Invalid Request: missing id for non-notification method"
+                        }
+                    }
 
             if method == "initialize":
                 # Handle initialization - use the client's protocol version

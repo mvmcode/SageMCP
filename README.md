@@ -66,7 +66,7 @@ A scalable, multi-tenant platform for hosting MCP (Model Context Protocol) serve
    ```
 
 4. **Access the services**:
-   - **Frontend**: http://localhost:3000 (React management interface)
+   - **Frontend**: http://localhost:3001 (React management interface)
    - **API**: http://localhost:8000
    - **API Docs**: http://localhost:8000/docs
    - **Database Admin**: http://localhost:8080 (Adminer)
@@ -94,7 +94,7 @@ A scalable, multi-tenant platform for hosting MCP (Model Context Protocol) serve
 
 ### Using the Web Interface
 
-1. **Open the frontend**: http://localhost:3000
+1. **Open the frontend**: http://localhost:3001
 2. **Create a tenant** using the web interface
 3. **Add connectors** and configure OAuth credentials
 4. **Copy the MCP server URL** for your Claude Desktop configuration
@@ -291,7 +291,7 @@ Some OAuth providers (like Slack) don't accept `localhost` or `http://` URLs for
    ```bash
    # Install ngrok (https://ngrok.com/download)
    # Start ngrok tunnel to your frontend
-   ngrok http 3000
+   ngrok http 3001
    ```
 
 2. **Configure PUBLIC_URL**:
@@ -314,8 +314,8 @@ Some OAuth providers (like Slack) don't accept `localhost` or `http://` URLs for
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Create a new OAuth App with these settings:
    - **Application name**: Your app name
-   - **Homepage URL**: `http://localhost:3000` (or your ngrok URL)
-   - **Authorization callback URL**: `http://localhost:3000/oauth/success` (or your ngrok URL + `/oauth/success`)
+   - **Homepage URL**: `http://localhost:3001` (or your ngrok URL)
+   - **Authorization callback URL**: `http://localhost:3001/oauth/success` (or your ngrok URL + `/oauth/success`)
 3. Copy Client ID and Client Secret to your `.env` file
 4. **Important**: For organization repositories, ensure your OAuth app has organization access:
    - Organization Settings > Third-party access > Grant access to your OAuth app
