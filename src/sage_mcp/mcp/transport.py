@@ -126,21 +126,34 @@ class MCPTransport:
             message_id = message.get("id")
             params = message.get("params", {})
 
+            # DEBUG: Log incoming message
+            print(f"DEBUG: Received message: method={method}, id={message_id}, has_id_key={'id' in message}")
+
             # Handle notifications (messages with no id or id=null)
-            # Notifications don't expect a response
-            if message_id is None:
-                # Handle notification methods
+            # Per JSON-RPC spec, notifications don't expect responses, but Claude's
+            # HTTP transport requires valid JSON-RPC responses with an id field
+            if message_id is None or ('id' not in message):
+                # Handle notification methods - return success acknowledgment
+                # Use id=1 as a placeholder since notifications don't have ids but Claude requires one
                 if method == "notifications/initialized":
-                    # Client has finished initialization, no response needed
-                    return None
+                    # Client has finished initialization
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "result": {}
+                    }
                 elif method and method.startswith("notifications/"):
-                    # Other notifications - don't respond
-                    return None
+                    # Other notifications - acknowledge receipt
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "result": {}
+                    }
                 # If it's not a notification method but has null id, treat it as malformed
                 else:
                     return {
                         "jsonrpc": "2.0",
-                        "id": None,
+                        "id": 1,
                         "error": {
                             "code": -32600,
                             "message": "Invalid Request: missing id for non-notification method"
