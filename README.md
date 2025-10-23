@@ -1,107 +1,78 @@
-# Sage MCP - Multi-Tenant MCP Server Platform
+<div align="center">
+  <h1>Sage MCP</h1>
+  <p>
+    <strong>Multi-Tenant MCP Server Platform</strong>
+  </p>
+  <p>
+    A scalable platform for hosting MCP (Model Context Protocol) servers with OAuth integration and connector plugins.
+  </p>
+</div>
 
-A scalable, multi-tenant platform for hosting MCP (Model Context Protocol) servers with OAuth integration and connector plugins for various services. Built for seamless integration with Claude Desktop and other MCP clients.
+## About The Project
 
-## 🚀 Features
+Sage MCP is a production-ready platform that enables you to run multiple isolated MCP servers with built-in OAuth authentication for services like GitHub, GitLab, and Google. It provides a web interface for managing tenants and connectors, making it easy to integrate Claude Desktop with various external services.
 
-- **Multi-Tenant Architecture**: Path-based tenant isolation (`yourdomain.com/tenant1/mcp`)
-- **MCP Protocol Compliance**: Full WebSocket, HTTP, and SSE transport with Claude Desktop compatibility
-- **OAuth 2.0 Integration**: Secure authentication for GitHub, GitLab, Google, and other services
-- **Plugin System**: Extensible connector architecture for easy service integration
-- **Built-in Connectors**: 
-  - ✅ **GitHub** - Full repository access, issues, PRs, file content, search
-  - 🚧 GitLab, Google Docs, Notion (coming soon)
-- **Web Management Interface**: React-based frontend for tenant and connector management
-- **Flexible Database Support**: PostgreSQL and Supabase with robust data persistence using SQLAlchemy
-- **Docker Support**: Complete containerization for development and production
-- **Kubernetes Ready**: Helm charts for cloud deployment with database provider flexibility
-- **Admin API**: RESTful API for tenant and connector management
-- **Real-time Debugging**: Token scope checking and connection diagnostics
+**Key Features:**
+- Multi-tenant architecture with path-based isolation
+- Full MCP protocol support (WebSocket, HTTP, SSE)
+- OAuth 2.0 integration for secure service authentication
+- Extensible plugin system for custom connectors
+- React-based management interface
+- Flexible database support (PostgreSQL, Supabase)
 
-## 🏗️ Architecture
+### Built With
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   MCP Client    │◄──►│   FastAPI App   │◄──►│   Connectors    │
-│ (Claude Desktop)│    │                 │    │   ✅ GitHub     │
-└─────────────────┘    │  ┌───────────┐  │    │   🚧 GitLab     │
-                       │  │Multi-Tenant│  │    │   🚧 Notion     │
-┌─────────────────┐    │  │  Router   │  │    │   🚧 Slack      │
-│  React Frontend │◄──►│  └───────────┘  │    │   + Custom      │
-│ (Web Interface) │    │                 │    └─────────────────┘
-└─────────────────┘    │  ┌───────────┐  │    
-                       │  │OAuth Flow │  │    ┌─────────────────┐
-┌─────────────────┐    │  │ & Tokens  │  │◄──►│ PostgreSQL/     │
-│  OAuth Provider │◄──►│  └───────────┘  │    │   Supabase      │
-│ (GitHub, etc)   │    └─────────────────┘    └─────────────────┘
-└─────────────────┘
-```
+* [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
+* [React](https://reactjs.org/) - Frontend interface
+* [SQLAlchemy](https://www.sqlalchemy.org/) - Database ORM
+* [MCP](https://modelcontextprotocol.io/) - Model Context Protocol
+* [Docker](https://www.docker.com/) - Containerization
 
-## 🚦 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - Docker and Docker Compose
 - Python 3.11+ (for local development)
-- Database: PostgreSQL (included in Docker setup) or Supabase (hosted)
+- PostgreSQL or Supabase account
 
-### Quick Start with Docker
+### Installation
 
-1. **Clone and setup**:
+1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd sage-mcp
-   make setup
+   git clone https://github.com/mvmcode/SageMCP.git
+   cd SageMCP
    ```
 
-2. **Configure OAuth** (optional):
+2. **Setup environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your OAuth credentials
+   # Edit .env with your OAuth credentials (optional for testing)
    ```
 
-3. **Start the platform**:
+3. **Start the platform**
    ```bash
+   make setup
    make up
    ```
 
-4. **Access the services**:
-   - **Frontend**: http://localhost:3001 (React management interface)
-   - **API**: http://localhost:8000
-   - **API Docs**: http://localhost:8000/docs
-   - **Database Admin**: http://localhost:8080 (Adminer)
-   - **Health Check**: http://localhost:8000/health
+4. **Access the application**
+   - Frontend: http://localhost:3001
+   - API: http://localhost:8000
+   - API Docs: http://localhost:8000/docs
 
-### Manual Setup
+## Usage
 
-1. **Install dependencies**:
-   ```bash
-   pip install -e .
-   ```
+### Quick Start
 
-2. **Setup database**:
-   ```bash
-   # Start PostgreSQL
-   docker-compose up postgres -d
-   ```
-
-3. **Run the application**:
-   ```bash
-   uvicorn sage_mcp.main:app --reload
-   ```
-
-## 📚 Usage
-
-### Using the Web Interface
-
-1. **Open the frontend**: http://localhost:3001
-2. **Create a tenant** using the web interface
-3. **Add connectors** and configure OAuth credentials
-4. **Copy the MCP server URL** for your Claude Desktop configuration
+1. Open the web interface at http://localhost:3001
+2. Create a new tenant
+3. Add a connector (e.g., GitHub) and configure OAuth
+4. Copy the MCP server URL for Claude Desktop
 
 ### Claude Desktop Configuration
 
-Add to your Claude Desktop configuration:
+Add to your Claude Desktop config:
 
 ```json
 {
@@ -117,303 +88,72 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-Or use the HTTP endpoint:
-```
-http://localhost:8000/api/v1/{tenant-slug}/mcp
-```
+### Available Connectors
 
-### Available GitHub Tools
+**GitHub** (Production Ready)
+- 24 comprehensive tools for repositories, commits, branches, issues, PRs, workflows, and releases
+- Full OAuth integration with organization access
 
-Once GitHub OAuth is configured, you'll have access to **24 comprehensive tools**:
+**Coming Soon**
+- GitLab
+- Google Docs
+- Notion
+- Slack
 
-**Repository Management (6 tools):**
-- `github_list_repositories` - List accessible repositories with filters
-- `github_get_repository` - Get detailed repository information
-- `github_search_repositories` - Search repositories by query
-- `github_get_repo_stats` - Get repository statistics and languages
-- `github_list_contributors` - List contributors with contribution counts
-- `github_get_file_content` - Get file content from repositories
+For detailed OAuth setup instructions, see the [OAuth Configuration Guide](.github/docs/oauth-setup.md).
 
-**Commits & Code Changes (3 tools):**
-- `github_list_commits` - List commits with filters (author, date, path)
-- `github_get_commit` - Get commit details including diffs and stats
-- `github_compare_commits` - Compare branches or commits
+## Development
 
-**Branch Management (2 tools):**
-- `github_list_branches` - List repository branches
-- `github_get_branch` - Get branch details and protection status
-
-**Issues & Pull Requests (2 tools):**
-- `github_list_issues` - List repository issues with filters
-- `github_list_pull_requests` - List pull requests with filters
-
-**User Information & Activity (4 tools):**
-- `github_get_user_info` - Get user profile and repositories
-- `github_get_user_stats` - Get comprehensive user statistics
-- `github_get_user_activity` - Get recent user activity events
-- `github_list_organizations` - List user's organizations
-
-**GitHub Actions / Workflows (3 tools):**
-- `github_list_workflows` - List repository workflows
-- `github_list_workflow_runs` - List workflow run history
-- `github_get_workflow_run` - Get detailed workflow run information
-
-**Releases (2 tools):**
-- `github_list_releases` - List repository releases
-- `github_get_release` - Get release details and assets
-
-**OAuth & Debugging (2 tools):**
-- `github_check_token_scopes` - Debug OAuth token permissions
-- `github_list_organizations` - List accessible organizations
-
-### API Usage (Alternative)
-
-#### Creating a Tenant
+### Running Tests
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/admin/tenants" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "slug": "acme-corp",
-    "name": "ACME Corporation",
-    "description": "ACME Corp tenant",
-    "contact_email": "admin@acme.com"
-  }'
+# Backend tests
+make test-backend
+
+# Frontend tests
+make test-frontend
+
+# All tests with coverage
+make test-coverage
 ```
 
-#### Adding a GitHub Connector
+### Available Commands
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/admin/tenants/acme-corp/connectors" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "connector_type": "github",
-    "name": "ACME GitHub",
-    "description": "GitHub integration for ACME"
-  }'
+make help            # Show all available commands
+make build           # Build Docker images
+make up              # Start all services
+make down            # Stop all services
+make logs            # View logs
+make shell           # Open shell in app container
+make clean           # Clean up containers and volumes
 ```
 
-## 🔧 Configuration
+### Adding New Connectors
 
-### Database Setup Options
+1. Create a new connector class in `src/sage_mcp/connectors/`
+2. Implement the `BaseConnector` interface
+3. Register with `@register_connector` decorator
+4. Add to the connector enum
 
-#### Option 1: PostgreSQL (Default)
-Use the included PostgreSQL Docker container for local development:
+See existing connectors in `src/sage_mcp/connectors/` for examples.
 
-```bash
-# Default configuration (already in .env)
-DATABASE_PROVIDER=postgresql
-DATABASE_URL=postgresql://sage_mcp:password@localhost:5432/sage_mcp
-```
-
-#### Option 2: Supabase (Hosted PostgreSQL)
-Use Supabase as a managed PostgreSQL alternative:
-
-1. **Create a Supabase project** at [supabase.com](https://supabase.com)
-2. **Configure your environment**:
-   ```bash
-   # Update your .env file
-   DATABASE_PROVIDER=supabase
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   # SUPABASE_ANON_KEY is optional for direct database access
-   ```
-3. **Disable local PostgreSQL** in docker-compose (optional):
-   ```bash
-   # Comment out postgres service dependencies if using Supabase
-   docker-compose up app frontend -d
-   ```
-
-**Benefits of Supabase:**
-- ✅ Hosted PostgreSQL with automatic backups
-- ✅ Built-in authentication and real-time features
-- ✅ Global CDN and edge functions
-- ✅ Automatic SSL and security
-- ✅ No local database setup required
-
-### Environment Variables
-
-```bash
-# Application
-DEBUG=true
-ENVIRONMENT=development
-HOST=0.0.0.0
-PORT=8000
-
-# Database Configuration
-DATABASE_PROVIDER=postgresql  # Options: postgresql, supabase
-DATABASE_URL=postgresql://user:pass@localhost:5432/sage_mcp
-
-# Supabase Configuration (only needed if DATABASE_PROVIDER=supabase)
-# SUPABASE_URL=https://your-project.supabase.co
-# SUPABASE_ANON_KEY=your-anon-key
-# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# Note: Redis dependency has been removed for simplicity
-
-# Security
-SECRET_KEY=your-secret-key
-
-# Base URL Configuration
-BASE_URL=http://localhost:8000
-
-# Public URL (for OAuth callbacks with tunneling services like ngrok)
-# When using ngrok or similar tunneling services for OAuth testing,
-# set this to your public URL. If not set, the application will use
-# BASE_URL or detect from request headers.
-# Example: PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
-PUBLIC_URL=
-
-# OAuth - GitHub
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-
-# OAuth - GitLab
-GITLAB_CLIENT_ID=your-gitlab-client-id
-GITLAB_CLIENT_SECRET=your-gitlab-client-secret
-
-# OAuth - Google
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# OAuth - Slack
-SLACK_CLIENT_ID=your-slack-client-id
-SLACK_CLIENT_SECRET=your-slack-client-secret
-```
-
-### OAuth Setup
-
-#### Using ngrok for OAuth Testing
-
-Some OAuth providers (like Slack) don't accept `localhost` or `http://` URLs for callback URLs. To test OAuth locally with these providers, use ngrok:
-
-1. **Install and start ngrok**:
-   ```bash
-   # Install ngrok (https://ngrok.com/download)
-   # Start ngrok tunnel to your frontend
-   ngrok http 3001
-   ```
-
-2. **Configure PUBLIC_URL**:
-   ```bash
-   # Add to your .env file
-   PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
-   ```
-
-3. **Restart the application**:
-   ```bash
-   docker-compose down
-   docker-compose up -d
-   ```
-
-4. **Update OAuth app settings**: Use your ngrok URL in the OAuth provider's callback URL settings
-
-**Note**: The `PUBLIC_URL` environment variable ensures that OAuth redirect URIs use your public ngrok URL instead of localhost, which is required by providers like Slack.
-
-#### GitHub
-1. Go to GitHub Settings > Developer settings > OAuth Apps
-2. Create a new OAuth App with these settings:
-   - **Application name**: Your app name
-   - **Homepage URL**: `http://localhost:3001` (or your ngrok URL)
-   - **Authorization callback URL**: `http://localhost:3001/oauth/success` (or your ngrok URL + `/oauth/success`)
-3. Copy Client ID and Client Secret to your `.env` file
-4. **Important**: For organization repositories, ensure your OAuth app has organization access:
-   - Organization Settings > Third-party access > Grant access to your OAuth app
-
-**Required Scopes**: `repo`, `user:email`, `read:org`
-
-#### GitLab
-1. Go to GitLab Settings > Applications
-2. Create a new application
-3. Set Redirect URI to: `http://localhost:8000/api/v1/oauth/{tenant}/callback/gitlab` (or use your ngrok URL)
-4. Copy Application ID and Secret to your `.env` file
-
-#### Slack
-1. Go to [Slack API Dashboard](https://api.slack.com/apps)
-2. Create a new app or select an existing one
-3. Navigate to **OAuth & Permissions**
-4. Add Redirect URL: `https://your-ngrok-url.ngrok-free.app/api/v1/oauth/{tenant}/callback/slack`
-   - **Important**: Slack requires HTTPS URLs, so you must use ngrok or another tunneling service
-5. Under **Bot Token Scopes**, add these scopes:
-   - `channels:history`
-   - `channels:read`
-   - `chat:write`
-   - `users:read`
-   - `team:read`
-   - `reactions:read`
-   - `reactions:write`
-6. Copy **Client ID** and **Client Secret** to your `.env` file as `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`
-7. Install the app to your workspace
-
-**Important**: Make sure the scopes in your Slack app settings exactly match the scopes requested by the application.
-
-## 🔌 Adding New Connectors
-
-1. **Create connector class**:
-   ```python
-   # src/sage_mcp/connectors/myservice.py
-   from .base import BaseConnector
-   from .registry import register_connector
-   from ..models.connector import ConnectorType
-
-   @register_connector(ConnectorType.MYSERVICE)
-   class MyServiceConnector(BaseConnector):
-       @property
-       def display_name(self) -> str:
-           return "My Service"
-       
-       @property 
-       def description(self) -> str:
-           return "Integration with My Service"
-       
-       @property
-       def requires_oauth(self) -> bool:
-           return True
-       
-       async def get_tools(self, connector, oauth_cred=None):
-           # Return list of MCP tools
-           pass
-       
-       async def execute_tool(self, connector, tool_name, arguments, oauth_cred=None):
-           # Execute tool logic
-           pass
-   ```
-
-2. **Add to connector enum**:
-   ```python
-   # src/sage_mcp/models/connector.py
-   class ConnectorType(enum.Enum):
-       # ... existing types
-       MYSERVICE = "myservice"
-   ```
-
-3. **Import in main app**:
-   ```python
-   # src/sage_mcp/main.py
-   from .connectors import myservice  # noqa
-   ```
-
-## 🚀 Deployment
+## Deployment
 
 ### Docker Compose (Development)
-
 ```bash
 make up
 ```
 
 ### Kubernetes (Production)
 
-The project includes comprehensive Helm charts for production deployment with flexible database options:
-
-#### Deploy with PostgreSQL
+Deploy with PostgreSQL:
 ```bash
-# Install with default PostgreSQL
 helm install sage-mcp ./helm
 ```
 
-#### Deploy with Supabase
+Deploy with Supabase:
 ```bash
-# Install with Supabase backend
 helm install sage-mcp ./helm \
   --set database.provider=supabase \
   --set postgresql.enabled=false \
@@ -421,181 +161,47 @@ helm install sage-mcp ./helm \
   --set supabase.serviceRoleKey=your-service-role-key
 ```
 
-**Helm Configuration Options:**
-- `database.provider`: `postgresql` or `supabase`
-- `postgresql.enabled`: Enable/disable PostgreSQL chart dependency
-- `supabase.url`: Your Supabase project URL
-- `supabase.serviceRoleKey`: Supabase service role key for database access
+## Roadmap
 
-## 🛠️ Development
+- [x] Multi-tenant MCP server
+- [x] GitHub connector with OAuth
+- [x] React management interface
+- [x] PostgreSQL and Supabase support
+- [x] Kubernetes deployment
+- [ ] GitLab connector
+- [ ] Google Docs connector
+- [ ] Notion connector
+- [ ] Advanced connector configuration
 
-### Testing
+See the [open issues](https://github.com/mvmcode/SageMCP/issues) for a full list of proposed features and known issues.
 
-The project uses SQLite in-memory database for testing to simplify setup and improve speed:
+## Contributing
 
-```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+Contributions are what make the open source community amazing! Any contributions you make are **greatly appreciated**.
 
-# Run backend tests
-pytest tests/ -v --cov=src/sage_mcp --cov-report=term
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-# Run specific test
-pytest tests/unit/test_config.py -v
-```
+## License
 
-### CI/CD Workflows
+Distributed under the Apache 2.0 License. See `LICENSE` for more information.
 
-The project includes comprehensive GitHub Actions workflows for automated testing and validation.
+## Contact
 
-📖 **[View CI/CD Documentation](.github/workflows/README.md)** for detailed information about:
-- Continuous Integration pipeline
-- Pull Request checks
-- Release management
-- Dependabot configuration
+Project Link: [https://github.com/mvmcode/SageMCP](https://github.com/mvmcode/SageMCP)
 
-### Available Make Commands
+## Acknowledgments
 
-```bash
-make help            # Show all available commands
-make build           # Build Docker images
-make up              # Start all services
-make down            # Stop all services
-make logs            # View logs from all services
-make logs-app        # View backend logs only
-make logs-frontend   # View frontend logs only
-make shell           # Open shell in app container
-make frontend-shell  # Open shell in frontend container
-make db-shell        # Open PostgreSQL shell
-make test            # Run all tests (backend + frontend)
-make test-backend    # Run backend tests only
-make test-frontend   # Run frontend tests only
-make test-coverage   # Run tests with coverage reports
-make lint            # Run linting
-make format          # Format code
-make clean           # Clean up containers and volumes
-make setup           # Initial development setup
-```
-
-### Project Structure
-
-```
-sage-mcp/
-├── src/sage_mcp/           # Backend (FastAPI)
-│   ├── api/                 # FastAPI routes (admin, OAuth, MCP)
-│   ├── auth/                # Authentication handlers
-│   ├── connectors/          # Connector plugins
-│   │   ├── github.py        # ✅ GitHub integration
-│   │   ├── gitlab.py        # 🚧 GitLab (coming soon)
-│   │   └── base.py          # Base connector class
-│   ├── database/            # Database utilities
-│   ├── mcp/                 # MCP protocol implementation
-│   │   ├── server.py        # MCP server logic
-│   │   └── transport.py     # WebSocket/HTTP transport
-│   ├── models/              # SQLAlchemy models
-│   ├── config.py            # Configuration
-│   └── main.py              # Application entry point
-├── tests/                  # Backend tests
-│   ├── unit/               # Unit tests
-│   ├── integration/        # Integration tests
-│   └── conftest.py         # Test configuration
-├── frontend/               # Frontend (React + TypeScript)
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── pages/           # Page components
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── utils/           # Utilities
-│   │   └── test/            # Test utilities and setup
-│   ├── package.json        # Node.js dependencies
-│   ├── vite.config.ts      # Vite configuration
-│   └── vitest.config.ts    # Test configuration
-├── helm/                   # Kubernetes Helm charts
-├── docker-compose.yml      # Local development setup
-├── Dockerfile             # Backend container
-├── pyproject.toml         # Python project config
-├── requirements.txt       # Python dependencies
-├── LICENSE                # Apache 2.0 License
-└── Makefile               # Development commands
-```
-
-## 🔒 Security
-
-- **OAuth 2.0** for secure service authentication with proper scope management
-- **Tenant isolation** at the database and application level
-- **Secure credential storage** with proper encryption for access tokens
-- **Rate limiting** and request validation
-- **CORS** and security headers configured
-- **Organization access control** for GitHub repositories
-- **Token scope validation** and debugging tools
-
-## 📊 Monitoring & Debugging
-
-- **Health check endpoint**: `/health`
-- **Structured logging** with request tracing
-- **Database connection monitoring**
-- **OAuth token expiration tracking**
-- **Real-time debugging tools**:
-  - `github_check_token_scopes` - Validate OAuth permissions
-  - `github_list_organizations` - Check organization access
-  - Detailed error messages for 403/auth issues
-- **MCP protocol compliance** validation
-- **Connection diagnostics** for Claude Desktop integration
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
-## 📄 License
-
-Apache 2.0 License - see LICENSE file for details.
-
-## 🆘 Support
-
-- Documentation: [Coming soon]
-- Issues: [GitHub Issues]
-- Email: support@sage-mcp.com
+* [Model Context Protocol](https://modelcontextprotocol.io/)
+* [FastAPI](https://fastapi.tiangolo.com/)
+* [Claude Desktop](https://claude.ai/)
+* [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 
 ---
 
-## 🎯 Current Status
-
-**✅ Production Ready Features:**
-- Multi-tenant MCP server platform
-- GitHub connector with full OAuth integration
-- React-based management interface
-- Claude Desktop compatible MCP protocol
-- Flexible database backends (PostgreSQL/Supabase)
-- Production-ready Helm charts with database provider options
-- Organization repository access
-- Real-time debugging and diagnostics
-
-**🚧 In Development:**
-- GitLab connector
-- Google Docs connector
-- Notion connector
-- Advanced connector configuration
-- Additional database providers (MongoDB, DynamoDB)
-
-**📈 Recent Updates:**
-- ✅ **Supabase Support** - Added hosted PostgreSQL alternative with intelligent URL generation
-- ✅ **Flexible Database Configuration** - Support for both PostgreSQL and Supabase backends
-- ✅ **Enhanced Helm Charts** - Production deployment with database provider options
-- ✅ **All tests passing (40/40)** with SQLite in-memory database
-- ✅ Simplified CI/CD with no PostgreSQL service required
-- ✅ Improved test coverage (41%) and automated quality checks
-- Fixed MCP protocol compliance for Claude Desktop
-- Implemented proper OAuth scope handling for organizations
-- Added token debugging and diagnostic tools
-- Updated tool names to follow MCP naming conventions
-- Cleaned response format to eliminate validation errors
-- Removed unused Redis dependency for simplified architecture
-- Added comprehensive test suite (backend: pytest, frontend: vitest)
-- Created Apache 2.0 license
-- Enhanced development workflow with improved Makefile commands
-
----
-
-Built with ❤️ using FastAPI, SQLAlchemy, React, and the MCP protocol.
+<div align="center">
+  Built with FastAPI, React, and the MCP Protocol
+</div>
