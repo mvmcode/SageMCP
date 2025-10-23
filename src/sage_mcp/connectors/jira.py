@@ -532,7 +532,7 @@ class JiraConnector(BaseConnector):
                     resources.append(types.Resource(
                         uri=f"jira://issue/{issue_key}",
                         name=f"{issue_key}: {summary}",
-                        description=f"Jira issue"
+                        description="Jira issue"
                     ))
             except Exception as e:
                 print(f"DEBUG: Could not fetch recent issues: {e}")
@@ -809,7 +809,7 @@ class JiraConnector(BaseConnector):
         payload = {"fields": fields}
 
         print(f"DEBUG: Updating Jira issue: {issue_key}")
-        response = await self._make_authenticated_request(
+        await self._make_authenticated_request(
             "PUT",
             f"{base_url}/issue/{issue_key}",
             oauth_cred,
@@ -856,7 +856,7 @@ class JiraConnector(BaseConnector):
             }
 
         print(f"DEBUG: Transitioning issue {issue_key} with transition {transition_id}")
-        response = await self._make_authenticated_request(
+        await self._make_authenticated_request(
             "POST",
             f"{base_url}/issue/{issue_key}/transitions",
             oauth_cred,
@@ -902,7 +902,7 @@ class JiraConnector(BaseConnector):
         payload = {"accountId": account_id}
 
         print(f"DEBUG: Assigning issue {issue_key} to user {account_id}")
-        response = await self._make_authenticated_request(
+        await self._make_authenticated_request(
             "PUT",
             f"{base_url}/issue/{issue_key}/assignee",
             oauth_cred,
@@ -945,7 +945,7 @@ class JiraConnector(BaseConnector):
         )
 
         result = response.json()
-        print(f"DEBUG: Comment added successfully")
+        print("DEBUG: Comment added successfully")
         return json.dumps(result, indent=2)
 
     async def _get_comments(self, cloud_id: str, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
@@ -982,7 +982,7 @@ class JiraConnector(BaseConnector):
         base_url = self._get_api_base_url(cloud_id)
         max_results = arguments.get("max_results", 50)
 
-        print(f"DEBUG: Listing Jira projects")
+        print("DEBUG: Listing Jira projects")
         response = await self._make_authenticated_request(
             "GET",
             f"{base_url}/project",
@@ -1032,7 +1032,7 @@ class JiraConnector(BaseConnector):
         if "project_key" in arguments:
             params["projectKeyOrId"] = arguments["project_key"]
 
-        print(f"DEBUG: Listing Jira boards")
+        print("DEBUG: Listing Jira boards")
         response = await self._make_authenticated_request(
             "GET",
             f"{agile_url}/board",
@@ -1182,7 +1182,7 @@ class JiraConnector(BaseConnector):
         """Get current user information."""
         base_url = self._get_api_base_url(cloud_id)
 
-        print(f"DEBUG: Fetching current user")
+        print("DEBUG: Fetching current user")
         response = await self._make_authenticated_request(
             "GET",
             f"{base_url}/myself",
