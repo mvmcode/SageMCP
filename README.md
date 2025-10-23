@@ -10,7 +10,7 @@
 
 ## About The Project
 
-Sage MCP is a production-ready platform that enables you to run multiple isolated MCP servers with built-in OAuth authentication for services like GitHub, GitLab, and Google. It provides a web interface for managing tenants and connectors, making it easy to integrate Claude Desktop with various external services.
+Sage MCP is a production-ready platform that enables you to run multiple isolated MCP servers with built-in OAuth authentication for services like GitHub, Jira, Slack, and more. It provides a web interface for managing tenants and connectors, making it easy to integrate Claude Desktop with various external services.
 
 **Key Features:**
 - Multi-tenant architecture with path-based isolation
@@ -88,19 +88,42 @@ Add to your Claude Desktop config:
 }
 ```
 
-### Available Connectors
+### Supported Connectors
 
-**GitHub** (Production Ready)
-- 24 comprehensive tools for repositories, commits, branches, issues, PRs, workflows, and releases
-- Full OAuth integration with organization access
+Sage MCP provides production-ready connectors for popular development and collaboration tools. Each connector includes full OAuth 2.0 integration and comprehensive tool coverage.
+
+#### GitHub
+**24 tools** for complete repository management
+- Repositories, issues, pull requests, and releases
+- Commits, branches, and comparisons
+- GitHub Actions workflows and runs
+- User and organization management
+- [Full Documentation →](docs/connectors/github.md)
+
+#### Jira
+**20 tools** for agile project management
+- Issue creation, updates, and JQL search
+- Sprint and board management
+- Workflow transitions and comments
+- Project and version tracking
+- [Full Documentation →](docs/connectors/jira.md)
+
+#### Slack
+**11 tools** for workspace communication
+- Send and read messages in channels
+- Thread conversations and search
+- User and channel management
+- Emoji reactions and rich formatting
+- [Full Documentation →](docs/connectors/slack.md)
 
 **Coming Soon**
 - GitLab
 - Google Docs
 - Notion
-- Slack
+- Linear
+- Confluence
 
-For detailed OAuth setup instructions, see the [OAuth Configuration Guide](.github/docs/oauth-setup.md).
+For general OAuth setup guidance, see the [OAuth Configuration Guide](.github/docs/oauth-setup.md).
 
 ## Development
 
@@ -165,12 +188,15 @@ helm install sage-mcp ./helm \
 
 - [x] Multi-tenant MCP server
 - [x] GitHub connector with OAuth
+- [x] Jira connector with OAuth
+- [x] Slack connector with OAuth
 - [x] React management interface
 - [x] PostgreSQL and Supabase support
 - [x] Kubernetes deployment
 - [ ] GitLab connector
 - [ ] Google Docs connector
 - [ ] Notion connector
+- [ ] Linear connector
 - [ ] Advanced connector configuration
 
 See the [open issues](https://github.com/mvmcode/SageMCP/issues) for a full list of proposed features and known issues.
