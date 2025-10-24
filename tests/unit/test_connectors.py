@@ -6,6 +6,7 @@ import pytest
 from mcp import types
 
 from sage_mcp.connectors.github import GitHubConnector
+from sage_mcp.connectors.google_docs import GoogleDocsConnector
 from sage_mcp.connectors.jira import JiraConnector
 from sage_mcp.connectors.registry import ConnectorRegistry
 from sage_mcp.models.connector import ConnectorType
@@ -269,6 +270,281 @@ class TestGitHubConnector:
 
         sample_oauth_credential.is_active = False
         assert connector.validate_oauth_credential(sample_oauth_credential) is False
+
+
+class TestGoogleDocsConnector:
+    """Test GoogleDocsConnector class."""
+
+    def test_google_docs_connector_properties(self):
+        """Test Google Docs connector properties."""
+        connector = GoogleDocsConnector()
+
+        assert connector.display_name == "Google Docs"
+        assert "Google Docs" in connector.description
+        assert connector.requires_oauth is True
+
+    @pytest.mark.asyncio
+    async def test_get_tools(self, sample_connector, sample_oauth_credential):
+        """Test getting Google Docs tools."""
+        connector = GoogleDocsConnector()
+
+        tools = await connector.get_tools(sample_connector, sample_oauth_credential)
+
+        assert len(tools) == 10  # We have 10 Google Docs tools
+
+        # Check that all tools have the correct naming convention
+        for tool in tools:
+            assert tool.name.startswith("google_docs_")
+            assert isinstance(tool, types.Tool)
+            assert tool.description is not None
+            assert tool.inputSchema is not None
+
+        # Check for specific tools
+        tool_names = [tool.name for tool in tools]
+        assert "google_docs_list_documents" in tool_names
+        assert "google_docs_get_document" in tool_names
+        assert "google_docs_read_document_content" in tool_names
+        assert "google_docs_search_documents" in tool_names
+        assert "google_docs_create_document" in tool_names
+        assert "google_docs_append_text" in tool_names
+        assert "google_docs_insert_text" in tool_names
+        assert "google_docs_export_document" in tool_names
+        assert "google_docs_get_permissions" in tool_names
+        assert "google_docs_list_shared_documents" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_unknown(self, sample_connector, sample_oauth_credential):
+        """Test executing unknown tool."""
+        connector = GoogleDocsConnector()
+
+        result = await connector.execute_tool(
+            sample_connector,
+            "unknown_tool",
+            {},
+            sample_oauth_credential
+        )
+
+        assert "Unknown tool" in result
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_invalid_oauth(self, sample_connector):
+        """Test executing tool with invalid OAuth."""
+        connector = GoogleDocsConnector()
+
+        result = await connector.execute_tool(
+            sample_connector,
+            "list_documents",
+            {},
+            None
+        )
+
+        assert "Invalid or expired" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.google_docs.GoogleDocsConnector._make_authenticated_request')
+    async def test_list_documents(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test listing documents."""
+        connector = GoogleDocsConnector()
+
+        # Mock the Google Drive API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "files": [
+                {
+                    "id": "doc123",
+                    "name": "Test Document",
+                    "createdTime": "2024-01-01T00:00:00Z",
+                    "modifiedTime": "2024-01-02T00:00:00Z",
+                    "webViewLink": "https://docs.google.com/document/d/doc123/edit",
+                    "owners": [{"displayName": "Test User"}],
+                    "starred": False
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._list_documents({}, sample_oauth_credential)
+
+        assert "Test Document" in result
+        assert "doc123" in result
+        assert "count" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.google_docs.GoogleDocsConnector._make_authenticated_request')
+    async def test_get_document(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting document metadata."""
+        connector = GoogleDocsConnector()
+
+        # Mock both API responses
+        doc_response = Mock()
+        doc_response.json.return_value = {
+            "documentId": "doc123",
+            "title": "Test Document",
+            "revisionId": "rev123"
+        }
+
+        drive_response = Mock()
+        drive_response.json.return_value = {
+            "id": "doc123",
+            "name": "Test Document",
+            "createdTime": "2024-01-01T00:00:00Z",
+            "modifiedTime": "2024-01-02T00:00:00Z",
+            "webViewLink": "https://docs.google.com/document/d/doc123/edit",
+            "owners": [{"displayName": "Test User"}],
+            "starred": True
+        }
+
+        mock_request.side_effect = [doc_response, drive_response]
+
+        result = await connector._get_document({"document_id": "doc123"}, sample_oauth_credential)
+
+        assert "doc123" in result
+        assert "Test Document" in result
+        assert "rev123" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.google_docs.GoogleDocsConnector._make_authenticated_request')
+    async def test_read_document_content(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test reading document content."""
+        connector = GoogleDocsConnector()
+
+        # Mock the Docs API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "documentId": "doc123",
+            "title": "Test Document",
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "textRun": {
+                                        "content": "Hello, world!\n"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._read_document_content(
+            {"document_id": "doc123", "format": "plain_text"},
+            sample_oauth_credential
+        )
+
+        assert "Test Document" in result
+        assert "Hello, world!" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.google_docs.GoogleDocsConnector._make_authenticated_request')
+    async def test_create_document(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test creating a document."""
+        connector = GoogleDocsConnector()
+
+        # Mock the create response
+        create_response = Mock()
+        create_response.json.return_value = {
+            "documentId": "new_doc123",
+            "title": "New Document"
+        }
+
+        # Mock the batch update response (for initial content)
+        update_response = Mock()
+        update_response.json.return_value = {}
+
+        mock_request.side_effect = [create_response, update_response]
+
+        result = await connector._create_document(
+            {"title": "New Document", "initial_content": "Initial text"},
+            sample_oauth_credential
+        )
+
+        assert "new_doc123" in result
+        assert "New Document" in result
+        assert "web_view_link" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.google_docs.GoogleDocsConnector._make_authenticated_request')
+    async def test_search_documents(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test searching documents."""
+        connector = GoogleDocsConnector()
+
+        # Mock the search response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "files": [
+                {
+                    "id": "doc456",
+                    "name": "Search Result",
+                    "modifiedTime": "2024-01-03T00:00:00Z",
+                    "webViewLink": "https://docs.google.com/document/d/doc456/edit"
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._search_documents(
+            {"query": "test", "page_size": 20},
+            sample_oauth_credential
+        )
+
+        assert "Search Result" in result
+        assert "doc456" in result
+        assert "count" in result
+
+    def test_validate_oauth_credential_valid(self, sample_oauth_credential):
+        """Test validating valid OAuth credential."""
+        connector = GoogleDocsConnector()
+
+        assert connector.validate_oauth_credential(sample_oauth_credential) is True
+
+    def test_validate_oauth_credential_none(self):
+        """Test validating None OAuth credential."""
+        connector = GoogleDocsConnector()
+
+        assert connector.validate_oauth_credential(None) is False
+
+    def test_validate_oauth_credential_inactive(self, sample_oauth_credential):
+        """Test validating inactive OAuth credential."""
+        connector = GoogleDocsConnector()
+
+        sample_oauth_credential.is_active = False
+        assert connector.validate_oauth_credential(sample_oauth_credential) is False
+
+    def test_extract_plain_text(self):
+        """Test extracting plain text from document structure."""
+        connector = GoogleDocsConnector()
+
+        doc_data = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "First line\n"}},
+                                {"textRun": {"content": "Second line\n"}}
+                            ]
+                        }
+                    },
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "Third line\n"}}
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+
+        text = connector._extract_plain_text(doc_data)
+        assert "First line" in text
+        assert "Second line" in text
+        assert "Third line" in text
 
 
 class TestJiraConnector:

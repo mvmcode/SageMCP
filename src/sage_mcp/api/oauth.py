@@ -69,6 +69,55 @@ OAUTH_PROVIDERS = {
             and os.getenv("SLACK_CLIENT_SECRET") != "your-slack-client-secret"
             else None
         ),
+    },
+    "google_docs": {
+        "name": "Google Docs",
+        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token_url": "https://oauth2.googleapis.com/token",
+        "user_url": "https://www.googleapis.com/oauth2/v2/userinfo",
+        "scopes": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ],
+        "client_id": (
+            os.getenv("GOOGLE_CLIENT_ID")
+            if os.getenv("GOOGLE_CLIENT_ID")
+            and os.getenv("GOOGLE_CLIENT_ID") != "your-google-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("GOOGLE_CLIENT_SECRET")
+            if os.getenv("GOOGLE_CLIENT_SECRET")
+            and os.getenv("GOOGLE_CLIENT_SECRET") != "your-google-client-secret"
+            else None
+        ),
+    },
+    "jira": {
+        "name": "Jira",
+        "auth_url": "https://auth.atlassian.com/authorize",
+        "token_url": "https://auth.atlassian.com/oauth/token",
+        "user_url": "https://api.atlassian.com/me",
+        "scopes": [
+            "read:jira-work",
+            "write:jira-work",
+            "read:jira-user",
+            "offline_access"
+        ],
+        "client_id": (
+            os.getenv("JIRA_CLIENT_ID")
+            if os.getenv("JIRA_CLIENT_ID")
+            and os.getenv("JIRA_CLIENT_ID") != "your-jira-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("JIRA_CLIENT_SECRET")
+            if os.getenv("JIRA_CLIENT_SECRET")
+            and os.getenv("JIRA_CLIENT_SECRET") != "your-jira-client-secret"
+            else None
+        ),
     }
 }
 
@@ -209,10 +258,20 @@ async def initiate_oauth(
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
-        "scope": " ".join(provider_config["scopes"]),
         "state": state,
         "response_type": "code"
     }
+
+    # Slack uses different parameter names and format
+    if provider == "slack":
+        params["user_scope"] = ",".join(provider_config["scopes"])  # Comma-separated for Slack
+    else:
+        params["scope"] = " ".join(provider_config["scopes"])  # Space-separated for others
+
+    # Add Google-specific parameters
+    if provider in ["google", "google_docs"]:
+        params["access_type"] = "offline"  # Request refresh token
+        params["prompt"] = "consent"  # Force consent screen to get refresh token
 
     auth_url = (
         f"{provider_config['auth_url']}?{urllib.parse.urlencode(params)}"
@@ -333,7 +392,8 @@ async def oauth_callback(
         "redirect_uri": redirect_uri,
     }
 
-    if provider == "google":
+    # Google and Atlassian OAuth require grant_type parameter
+    if provider in ["google", "google_docs", "jira"]:
         token_data["grant_type"] = "authorization_code"
 
     headers = {"Accept": "application/json"}
@@ -387,6 +447,14 @@ async def oauth_callback(
         # Slack OAuth v2 returns user_id in the auth.test response
         provider_user_id = user_info.get("user_id", user_info.get("user"))
         provider_username = user_info.get("user", provider_user_id)
+    elif provider in ["google", "google_docs"]:
+        # Google OAuth returns 'id' and 'email' fields
+        provider_user_id = str(user_info.get("id", user_info.get("sub", "unknown")))
+        provider_username = user_info.get("email", user_info.get("name", "unknown"))
+    elif provider == "jira":
+        # Atlassian OAuth returns 'account_id' and 'email' fields
+        provider_user_id = str(user_info.get("account_id", "unknown"))
+        provider_username = user_info.get("email", user_info.get("name", "unknown"))
     else:
         provider_user_id = str(user_info.get("id", "unknown"))
         provider_username = user_info.get(

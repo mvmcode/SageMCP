@@ -75,6 +75,20 @@ class Settings(BaseSettings):
         default=None, env="GOOGLE_CLIENT_SECRET"
     )
 
+    # Google API Scopes
+    google_docs_scopes: str = Field(
+        default="https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
+        env="GOOGLE_DOCS_SCOPES"
+    )
+
+    # OAuth Configuration - Jira
+    jira_client_id: Optional[str] = Field(
+        default=None, env="JIRA_CLIENT_ID"
+    )
+    jira_client_secret: Optional[str] = Field(
+        default=None, env="JIRA_CLIENT_SECRET"
+    )
+
     # Base URL for OAuth redirects
     base_url: str = Field(default="http://localhost:8000", env="BASE_URL")
 

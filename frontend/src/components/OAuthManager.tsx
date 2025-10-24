@@ -15,12 +15,14 @@ import { oauthApi } from '@/utils/api'
 import { OAuthProvider, OAuthCredential, OAuthConfig } from '@/types'
 import { cn } from '@/utils/cn'
 import OAuthConfigModal from './OAuthConfigModal'
-import { GitHubLogo, SlackLogo } from './icons/BrandLogos'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo } from './icons/BrandLogos'
 
 const ProviderIcon = ({ provider }: { provider: string }) => {
   const icons = {
     github: GitHubLogo,
     slack: SlackLogo,
+    google_docs: GoogleDocsLogo,
+    jira: JiraLogo,
   }
 
   const Icon = icons[provider as keyof typeof icons] || Settings
@@ -240,6 +242,8 @@ export default function OAuthManager({ tenantSlug, onCredentialChange, filterPro
                     'p-2 rounded-lg',
                     provider.id === 'github' ? 'bg-gray-900 text-white' :
                     provider.id === 'slack' ? 'bg-purple-600 text-white' :
+                    provider.id === 'google_docs' ? 'bg-blue-500 text-white' :
+                    provider.id === 'jira' ? 'bg-blue-600 text-white' :
                     'bg-gray-600 text-white'
                   )}>
                     <ProviderIcon provider={provider.id} />

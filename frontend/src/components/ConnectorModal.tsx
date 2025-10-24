@@ -8,7 +8,7 @@ import { X, Key } from 'lucide-react'
 import { tenantsApi, connectorsApi } from '@/utils/api'
 import { ConnectorType, ConnectorCreate } from '@/types'
 import { cn } from '@/utils/cn'
-import { GitHubLogo, SlackLogo } from './icons/BrandLogos'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo } from './icons/BrandLogos'
 
 const connectorSchema = z.object({
   tenant_slug: z.string().min(1, 'Please select a tenant'),
@@ -50,6 +50,18 @@ const ConnectorTypeCard = ({
       name: 'Slack',
       description: 'Connect to Slack channels and messages',
       color: 'bg-purple-600 text-white',
+    },
+    [ConnectorType.GOOGLE_DOCS]: {
+      icon: GoogleDocsLogo,
+      name: 'Google Docs',
+      description: 'Create, read, and manage Google Docs documents',
+      color: 'bg-blue-500 text-white',
+    },
+    [ConnectorType.JIRA]: {
+      icon: JiraLogo,
+      name: 'Jira',
+      description: 'Access Jira projects, issues, sprints, and boards',
+      color: 'bg-blue-600 text-white',
     },
   }
 
@@ -164,7 +176,7 @@ export default function ConnectorModal({
   }
 
   const requiresOAuth = (type: ConnectorType) => {
-    return [ConnectorType.GITHUB, ConnectorType.SLACK].includes(type)
+    return [ConnectorType.GITHUB, ConnectorType.SLACK, ConnectorType.GOOGLE_DOCS, ConnectorType.JIRA].includes(type)
   }
 
   const onSubmit = (data: ConnectorFormData) => {
@@ -208,7 +220,7 @@ export default function ConnectorModal({
             {step === 'type' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Only show implemented connector types */}
-                {[ConnectorType.GITHUB, ConnectorType.SLACK].map((type) => (
+                {[ConnectorType.GITHUB, ConnectorType.SLACK, ConnectorType.GOOGLE_DOCS, ConnectorType.JIRA].map((type) => (
                   <ConnectorTypeCard
                     key={type}
                     type={type}
