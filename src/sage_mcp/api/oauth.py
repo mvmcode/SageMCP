@@ -94,6 +94,30 @@ OAUTH_PROVIDERS = {
             and os.getenv("GOOGLE_CLIENT_SECRET") != "your-google-client-secret"
             else None
         ),
+    },
+    "jira": {
+        "name": "Jira",
+        "auth_url": "https://auth.atlassian.com/authorize",
+        "token_url": "https://auth.atlassian.com/oauth/token",
+        "user_url": "https://api.atlassian.com/me",
+        "scopes": [
+            "read:jira-work",
+            "write:jira-work",
+            "read:jira-user",
+            "offline_access"
+        ],
+        "client_id": (
+            os.getenv("JIRA_CLIENT_ID")
+            if os.getenv("JIRA_CLIENT_ID")
+            and os.getenv("JIRA_CLIENT_ID") != "your-jira-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("JIRA_CLIENT_SECRET")
+            if os.getenv("JIRA_CLIENT_SECRET")
+            and os.getenv("JIRA_CLIENT_SECRET") != "your-jira-client-secret"
+            else None
+        ),
     }
 }
 
@@ -363,8 +387,8 @@ async def oauth_callback(
         "redirect_uri": redirect_uri,
     }
 
-    # Google OAuth requires grant_type parameter
-    if provider in ["google", "google_docs"]:
+    # Google and Atlassian OAuth require grant_type parameter
+    if provider in ["google", "google_docs", "jira"]:
         token_data["grant_type"] = "authorization_code"
 
     headers = {"Accept": "application/json"}
@@ -421,6 +445,10 @@ async def oauth_callback(
     elif provider in ["google", "google_docs"]:
         # Google OAuth returns 'id' and 'email' fields
         provider_user_id = str(user_info.get("id", user_info.get("sub", "unknown")))
+        provider_username = user_info.get("email", user_info.get("name", "unknown"))
+    elif provider == "jira":
+        # Atlassian OAuth returns 'account_id' and 'email' fields
+        provider_user_id = str(user_info.get("account_id", "unknown"))
         provider_username = user_info.get("email", user_info.get("name", "unknown"))
     else:
         provider_user_id = str(user_info.get("id", "unknown"))

@@ -81,6 +81,14 @@ class Settings(BaseSettings):
         env="GOOGLE_DOCS_SCOPES"
     )
 
+    # OAuth Configuration - Jira
+    jira_client_id: Optional[str] = Field(
+        default=None, env="JIRA_CLIENT_ID"
+    )
+    jira_client_secret: Optional[str] = Field(
+        default=None, env="JIRA_CLIENT_SECRET"
+    )
+
     # Base URL for OAuth redirects
     base_url: str = Field(default="http://localhost:8000", env="BASE_URL")
 
