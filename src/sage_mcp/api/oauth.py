@@ -258,10 +258,15 @@ async def initiate_oauth(
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
-        "scope": " ".join(provider_config["scopes"]),
         "state": state,
         "response_type": "code"
     }
+
+    # Slack uses different parameter names and format
+    if provider == "slack":
+        params["user_scope"] = ",".join(provider_config["scopes"])  # Comma-separated for Slack
+    else:
+        params["scope"] = " ".join(provider_config["scopes"])  # Space-separated for others
 
     # Add Google-specific parameters
     if provider in ["google", "google_docs"]:
