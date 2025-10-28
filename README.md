@@ -116,9 +116,16 @@ Sage MCP provides production-ready connectors for popular development and collab
 - Emoji reactions and rich formatting
 - [Full Documentation →](docs/connectors/slack.md)
 
+#### Google Docs
+**10 tools** for document management
+- Create, read, and update documents
+- Search and list accessible documents
+- Export documents in multiple formats
+- Manage sharing permissions
+- [Full Documentation →](docs/connectors/google-docs.md)
+
 **Coming Soon**
 - GitLab
-- Google Docs
 - Notion
 - Linear
 - Confluence
@@ -190,11 +197,11 @@ helm install sage-mcp ./helm \
 - [x] GitHub connector with OAuth
 - [x] Jira connector with OAuth
 - [x] Slack connector with OAuth
+- [x] Google Docs connector with OAuth
 - [x] React management interface
 - [x] PostgreSQL and Supabase support
 - [x] Kubernetes deployment
 - [ ] GitLab connector
-- [ ] Google Docs connector
 - [ ] Notion connector
 - [ ] Linear connector
 - [ ] Advanced connector configuration
@@ -217,7 +224,8 @@ Distributed under the Apache 2.0 License. See `LICENSE` for more information.
 
 ## Contact
 
-Project Link: [https://github.com/mvmcode/SageMCP](https://github.com/mvmcode/SageMCP)
+- Project Link: [https://github.com/mvmcode/SageMCP](https://github.com/mvmcode/SageMCP)
+- Discord Community: [https://discord.gg/kpHzRzmy](https://discord.gg/kpHzRzmy)
 
 ## Acknowledgments
 
