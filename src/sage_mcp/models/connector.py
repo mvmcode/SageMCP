@@ -48,6 +48,7 @@ class ConnectorType(enum.Enum):
     SLACK = "slack"
     TEAMS = "teams"
     DISCORD = "discord"
+    ZOOM = "zoom"
 
 
 class Connector(Base):

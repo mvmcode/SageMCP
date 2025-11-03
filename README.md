@@ -20,6 +20,67 @@ Sage MCP is a production-ready platform that enables you to run multiple isolate
 - React-based management interface
 - Flexible database support (PostgreSQL, Supabase)
 
+## Architecture
+
+<div align="center">
+
+### High-Level System Architecture
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        CD[Claude Desktop]
+        WEB[Web Browser]
+    end
+
+    subgraph "SageMCP Platform"
+        subgraph "Frontend :3001"
+            UI[React UI]
+        end
+
+        subgraph "Backend :8000"
+            API[FastAPI]
+            MCP[MCP Server]
+            CONNECTORS[Connector Plugins<br/>GitHub • Jira • Slack<br/>Google Docs • Notion • Zoom]
+        end
+
+        subgraph "Database"
+            DB[(PostgreSQL/<br/>Supabase)]
+        end
+    end
+
+    subgraph "External Services"
+        EXT[GitHub • Slack • Jira<br/>Google • Notion • Zoom APIs]
+    end
+
+    CD -->|WebSocket/HTTP| MCP
+    WEB -->|HTTPS| UI
+    UI -->|REST API| API
+    MCP -->|Execute Tools| CONNECTORS
+    API -->|ORM| DB
+    CONNECTORS -->|OAuth| EXT
+
+    style CD fill:#e1f5ff
+    style WEB fill:#e1f5ff
+    style UI fill:#fff3e0
+    style API fill:#f3e5f5
+    style MCP fill:#e8f5e9
+    style CONNECTORS fill:#e8f5e9
+    style DB fill:#fce4ec
+    style EXT fill:#e0f2f1
+```
+
+**[📖 View Full Architecture Documentation →](docs/architecture.md)** | Includes 10+ detailed diagrams covering OAuth flows, multi-tenancy, database schema, deployment, and more.
+
+</div>
+
+**Architecture Highlights:**
+- **Multi-tenant isolation** with path-based routing (`/api/v1/{tenant_slug}/mcp`)
+- **Plugin-based connectors** for extensibility (6 connectors with 87+ tools)
+- **OAuth 2.0 authentication** per tenant with encrypted credential storage
+- **Async I/O** throughout the stack for high performance
+- **Horizontal scaling** ready via Kubernetes with Helm charts
+
 ### Built With
 
 * [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
@@ -92,7 +153,9 @@ Add to your Claude Desktop config:
 
 Sage MCP provides production-ready connectors for popular development and collaboration tools. Each connector includes full OAuth 2.0 integration and comprehensive tool coverage.
 
-#### GitHub
+<div align="left">
+
+#### <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="24" height="24" style="vertical-align: middle;" /> GitHub
 **24 tools** for complete repository management
 - Repositories, issues, pull requests, and releases
 - Commits, branches, and comparisons
@@ -100,7 +163,7 @@ Sage MCP provides production-ready connectors for popular development and collab
 - User and organization management
 - [Full Documentation →](docs/connectors/github.md)
 
-#### Jira
+#### <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" width="24" height="24" style="vertical-align: middle;" /> Jira
 **20 tools** for agile project management
 - Issue creation, updates, and JQL search
 - Sprint and board management
@@ -108,7 +171,7 @@ Sage MCP provides production-ready connectors for popular development and collab
 - Project and version tracking
 - [Full Documentation →](docs/connectors/jira.md)
 
-#### Slack
+#### <img src="https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg" width="24" height="24" style="vertical-align: middle;" /> Slack
 **11 tools** for workspace communication
 - Send and read messages in channels
 - Thread conversations and search
@@ -116,7 +179,7 @@ Sage MCP provides production-ready connectors for popular development and collab
 - Emoji reactions and rich formatting
 - [Full Documentation →](docs/connectors/slack.md)
 
-#### Google Docs
+#### <img src="https://www.gstatic.com/images/branding/product/1x/docs_2020q4_48dp.png" width="24" height="24" style="vertical-align: middle;" /> Google Docs
 **10 tools** for document management
 - Create, read, and update documents
 - Search and list accessible documents
@@ -124,9 +187,26 @@ Sage MCP provides production-ready connectors for popular development and collab
 - Manage sharing permissions
 - [Full Documentation →](docs/connectors/google-docs.md)
 
+#### <img src="https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png" width="24" height="24" style="vertical-align: middle;" /> Notion
+**10 tools** for workspace collaboration
+- Access databases, pages, and blocks
+- Search and query database entries
+- Create and update pages with content
+- Read structured and plain text content
+- [Full Documentation →](docs/connectors/notion.md)
+
+#### <img src="https://st1.zoom.us/static/5.17.11.2992/image/new/ZoomLogo.png" width="64" height="24" style="vertical-align: middle;" /> Zoom
+**12 tools** for video conferencing
+- Manage meetings, webinars, and recordings
+- Create and update scheduled meetings
+- Access cloud recordings and download links
+- View meeting participants and invitations
+- [Full Documentation →](docs/connectors/zoom.md)
+
+</div>
+
 **Coming Soon**
 - GitLab
-- Notion
 - Linear
 - Confluence
 
