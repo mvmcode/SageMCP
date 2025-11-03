@@ -25,7 +25,7 @@ graph TB
                 OAUTH["OAuth API
 /api/v1/oauth/*"]
                 MCP_ROUTE["MCP API
-/api/v1/{slug}/mcp"]
+/api/v1/SLUG/mcp"]
             end
 
             subgraph "Core Services"
@@ -185,8 +185,8 @@ Tenant 1"]
     CD2["Claude Desktop
 Tenant 2"]
 
-    CD1 -->|WS: /api/v1/acme-corp/connectors/{id}/mcp| T1
-    CD2 -->|WS: /api/v1/startup-inc/connectors/{id}/mcp| T2
+    CD1 -->|"WS: /api/v1/acme-corp/connectors/ID/mcp"| T1
+    CD2 -->|"WS: /api/v1/startup-inc/connectors/ID/mcp"| T2
 
     style T1 fill:#e3f2fd
     style T2 fill:#f3e5f5
@@ -238,7 +238,7 @@ sequenceDiagram
     participant DB as Database
     participant API as External API
 
-    Client->>Transport: WebSocket Connect /api/v1/{slug}/connectors/{id}/mcp
+    Client->>Transport: WebSocket Connect /api/v1/SLUG/connectors/ID/mcp
     Transport->>DB: Load Tenant & Connector
     DB->>Transport: Return config
     Transport->>Server: Initialize MCP Server
@@ -254,7 +254,7 @@ sequenceDiagram
     Registry->>Connector: execute_tool(name, args, oauth)
     Connector->>DB: Validate OAuth credential
     DB->>Connector: OAuth token valid
-    Connector->>API: GET /user/repos Authorization: Bearer {token}
+    Connector->>API: GET /user/repos Authorization: Bearer TOKEN
     API->>Connector: Repository list
     Connector->>Server: Format as TextContent
     Server->>Client: MCP response with data
@@ -441,13 +441,13 @@ sequenceDiagram
 
     Note over Admin,DB: Step 3: Create Connector
     Admin->>UI: Add GitHub connector
-    UI->>API: POST /api/v1/admin/tenants/{id}/connectors
+    UI->>API: POST /api/v1/admin/tenants/ID/connectors
     API->>DB: INSERT INTO connectors
     DB->>API: Connector created
     API->>UI: Connector ready
 
     Note over Claude,ExtAPI: Step 4: Use MCP Tools
-    Claude->>API: WebSocket connect /api/v1/acme-corp/connectors/{id}/mcp
+    Claude->>API: WebSocket connect /api/v1/acme-corp/connectors/ID/mcp
     API->>DB: Load tenant, connector, oauth
     DB->>API: Return configuration
     API->>Claude: WebSocket connected
@@ -456,7 +456,7 @@ sequenceDiagram
     API->>Connector: execute_tool()
     Connector->>DB: Get OAuth credential
     DB->>Connector: access_token
-    Connector->>ExtAPI: GET /user/repos Bearer {token}
+    Connector->>ExtAPI: GET /user/repos Bearer TOKEN
     ExtAPI->>Connector: Repository list JSON
     Connector->>API: Format response
     API->>Claude: MCP TextContent response
