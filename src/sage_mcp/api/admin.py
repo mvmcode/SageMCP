@@ -1,5 +1,6 @@
 """Admin API routes for tenant and connector management."""
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -28,6 +29,8 @@ class TenantResponse(BaseModel):
     description: Optional[str]
     is_active: bool
     contact_email: Optional[str]
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -47,6 +50,9 @@ class ConnectorResponse(BaseModel):
     description: Optional[str]
     is_enabled: bool
     configuration: Optional[Dict[str, Any]]
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
