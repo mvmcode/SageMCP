@@ -234,10 +234,12 @@ const TenantCard = ({ tenant }: { tenant: Tenant }) => {
                     <span>{tenant.contact_email}</span>
                   </div>
                 )}
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>Created {new Date(tenant.created_at || '').toLocaleDateString()}</span>
-                </div>
+                {tenant.created_at && (
+                  <div className="flex items-center space-x-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>Created {new Date(tenant.created_at).toLocaleDateString()}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
