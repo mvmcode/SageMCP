@@ -28,29 +28,33 @@ Sage MCP is a production-ready platform that enables you to run multiple isolate
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph Client["Client Layer"]
         CD[Claude Desktop]
         WEB[Web Browser]
     end
 
-    subgraph "SageMCP Platform"
-        subgraph "Frontend :3001"
+    subgraph Platform["SageMCP Platform"]
+        subgraph Frontend["Frontend :3001"]
             UI[React UI]
         end
 
-        subgraph "Backend :8000"
+        subgraph Backend["Backend :8000"]
             API[FastAPI]
             MCP[MCP Server]
-            CONNECTORS[Connector Plugins<br/>GitHub • Jira • Slack<br/>Google Docs • Notion • Zoom]
+            CONNECTORS["Connector Plugins
+            GitHub • Jira • Slack
+            Google Docs • Notion • Zoom"]
         end
 
-        subgraph "Database"
-            DB[(PostgreSQL/<br/>Supabase)]
+        subgraph Database["Database"]
+            DB[("PostgreSQL /
+            Supabase")]
         end
     end
 
-    subgraph "External Services"
-        EXT[GitHub • Slack • Jira<br/>Google • Notion • Zoom APIs]
+    subgraph External["External Services"]
+        EXT["GitHub • Slack • Jira
+        Google • Notion • Zoom APIs"]
     end
 
     CD -->|WebSocket/HTTP| MCP
