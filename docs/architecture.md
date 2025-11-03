@@ -20,14 +20,18 @@ graph TB
             API[FastAPI Application]
 
             subgraph "API Routes"
-                ADMIN[Admin API<br/>/api/v1/admin/*]
-                OAUTH[OAuth API<br/>/api/v1/oauth/*]
-                MCP_ROUTE[MCP API<br/>/api/v1/{slug}/mcp]
+                ADMIN["Admin API
+/api/v1/admin/*"]
+                OAUTH["OAuth API
+/api/v1/oauth/*"]
+                MCP_ROUTE["MCP API
+/api/v1/{slug}/mcp"]
             end
 
             subgraph "Core Services"
                 MCP_SERVER[MCP Server]
-                MCP_TRANSPORT[MCP Transport<br/>WebSocket/HTTP/SSE]
+                MCP_TRANSPORT["MCP Transport
+WebSocket/HTTP/SSE"]
             end
 
             subgraph "Connector System"
@@ -35,12 +39,18 @@ graph TB
                 BASE[Base Connector]
 
                 subgraph "Connector Plugins"
-                    GH[GitHub<br/>24 tools]
-                    JIRA[Jira<br/>20 tools]
-                    SLACK[Slack<br/>11 tools]
-                    GDOCS[Google Docs<br/>10 tools]
-                    NOTION[Notion<br/>10 tools]
-                    ZOOM[Zoom<br/>12 tools]
+                    GH["GitHub
+24 tools"]
+                    JIRA["Jira
+20 tools"]
+                    SLACK["Slack
+11 tools"]
+                    GDOCS["Google Docs
+10 tools"]
+                    NOTION["Notion
+10 tools"]
+                    ZOOM["Zoom
+12 tools"]
                 end
             end
 
@@ -51,7 +61,8 @@ graph TB
         end
 
         subgraph "Database"
-            DB[(PostgreSQL/<br/>Supabase)]
+            DB[("PostgreSQL /
+Supabase")]
 
             subgraph "Tables"
                 T_TENANT[Tenants]
@@ -130,11 +141,16 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Tenant 1: acme-corp"
-        T1[Tenant: acme-corp<br/>ID: uuid-1]
-        T1_CONN1[Connector: GitHub<br/>Enabled]
-        T1_CONN2[Connector: Slack<br/>Enabled]
-        T1_OAUTH1[OAuth: GitHub<br/>access_token]
-        T1_OAUTH2[OAuth: Slack<br/>access_token]
+        T1["Tenant: acme-corp
+ID: uuid-1"]
+        T1_CONN1["Connector: GitHub
+Enabled"]
+        T1_CONN2["Connector: Slack
+Enabled"]
+        T1_OAUTH1["OAuth: GitHub
+access_token"]
+        T1_OAUTH2["OAuth: Slack
+access_token"]
 
         T1 --> T1_CONN1
         T1 --> T1_CONN2
@@ -145,11 +161,16 @@ graph TB
     end
 
     subgraph "Tenant 2: startup-inc"
-        T2[Tenant: startup-inc<br/>ID: uuid-2]
-        T2_CONN1[Connector: Jira<br/>Enabled]
-        T2_CONN2[Connector: Zoom<br/>Enabled]
-        T2_OAUTH1[OAuth: Jira<br/>access_token]
-        T2_OAUTH2[OAuth: Zoom<br/>access_token]
+        T2["Tenant: startup-inc
+ID: uuid-2"]
+        T2_CONN1["Connector: Jira
+Enabled"]
+        T2_CONN2["Connector: Zoom
+Enabled"]
+        T2_OAUTH1["OAuth: Jira
+access_token"]
+        T2_OAUTH2["OAuth: Zoom
+access_token"]
 
         T2 --> T2_CONN1
         T2 --> T2_CONN2
@@ -159,8 +180,10 @@ graph TB
         T2_CONN2 -.uses.-> T2_OAUTH2
     end
 
-    CD1[Claude Desktop<br/>Tenant 1]
-    CD2[Claude Desktop<br/>Tenant 2]
+    CD1["Claude Desktop
+Tenant 1"]
+    CD2["Claude Desktop
+Tenant 2"]
 
     CD1 -->|WS: /api/v1/acme-corp/connectors/{id}/mcp| T1
     CD2 -->|WS: /api/v1/startup-inc/connectors/{id}/mcp| T2
@@ -178,7 +201,7 @@ sequenceDiagram
     participant User
     participant Frontend
     participant SageMCP
-    participant Provider as OAuth Provider<br/>(GitHub/Slack/etc)
+    participant Provider as OAuth Provider (GitHub/Slack/etc)
     participant API as External API
 
     User->>Frontend: Click "Connect GitHub"
@@ -215,7 +238,7 @@ sequenceDiagram
     participant DB as Database
     participant API as External API
 
-    Client->>Transport: WebSocket Connect<br/>/api/v1/{slug}/connectors/{id}/mcp
+    Client->>Transport: WebSocket Connect /api/v1/{slug}/connectors/{id}/mcp
     Transport->>DB: Load Tenant & Connector
     DB->>Transport: Return config
     Transport->>Server: Initialize MCP Server
@@ -231,7 +254,7 @@ sequenceDiagram
     Registry->>Connector: execute_tool(name, args, oauth)
     Connector->>DB: Validate OAuth credential
     DB->>Connector: OAuth token valid
-    Connector->>API: GET /user/repos<br/>Authorization: Bearer {token}
+    Connector->>API: GET /user/repos Authorization: Bearer {token}
     API->>Connector: Repository list
     Connector->>Server: Format as TextContent
     Server->>Client: MCP response with data
@@ -302,17 +325,27 @@ erDiagram
 ```mermaid
 graph TB
     subgraph "Connector Registry"
-        REG[ConnectorRegistry<br/>Singleton]
+        REG["ConnectorRegistry
+Singleton"]
         REG_MAP{Connector Map}
 
         REG --> REG_MAP
     end
 
     subgraph "Base Class"
-        BASE[BaseConnector<br/>Abstract Class]
+        BASE["BaseConnector
+Abstract Class"]
 
-        BASE_PROPS[Properties:<br/>- name<br/>- display_name<br/>- requires_oauth]
-        BASE_METHODS[Methods:<br/>- get_tools<br/>- get_resources<br/>- execute_tool<br/>- read_resource<br/>- validate_oauth]
+        BASE_PROPS["Properties:
+- name
+- display_name
+- requires_oauth"]
+        BASE_METHODS["Methods:
+- get_tools
+- get_resources
+- execute_tool
+- read_resource
+- validate_oauth"]
 
         BASE --> BASE_PROPS
         BASE --> BASE_METHODS
@@ -325,11 +358,31 @@ graph TB
         NOTION_CONN[NotionConnector]
         ZOOM_CONN[ZoomConnector]
 
-        GH_CONN --> GH_TOOLS["24 Tools:<br/>- list_repositories<br/>- create_issue<br/>- list_pull_requests<br/>- etc."]
-        JIRA_CONN --> JIRA_TOOLS["20 Tools:<br/>- search_issues<br/>- create_issue<br/>- list_projects<br/>- etc."]
-        SLACK_CONN --> SLACK_TOOLS["11 Tools:<br/>- send_message<br/>- list_channels<br/>- search_messages<br/>- etc."]
-        NOTION_CONN --> NOTION_TOOLS["10 Tools:<br/>- list_databases<br/>- get_page<br/>- create_page<br/>- etc."]
-        ZOOM_CONN --> ZOOM_TOOLS["12 Tools:<br/>- list_meetings<br/>- create_meeting<br/>- list_recordings<br/>- etc."]
+        GH_CONN --> GH_TOOLS["24 Tools:
+- list_repositories
+- create_issue
+- list_pull_requests
+- etc."]
+        JIRA_CONN --> JIRA_TOOLS["20 Tools:
+- search_issues
+- create_issue
+- list_projects
+- etc."]
+        SLACK_CONN --> SLACK_TOOLS["11 Tools:
+- send_message
+- list_channels
+- search_messages
+- etc."]
+        NOTION_CONN --> NOTION_TOOLS["10 Tools:
+- list_databases
+- get_page
+- create_page
+- etc."]
+        ZOOM_CONN --> ZOOM_TOOLS["12 Tools:
+- list_meetings
+- create_meeting
+- list_recordings
+- etc."]
     end
 
     REG_MAP -->|"github"| GH_CONN
@@ -394,7 +447,7 @@ sequenceDiagram
     API->>UI: Connector ready
 
     Note over Claude,ExtAPI: Step 4: Use MCP Tools
-    Claude->>API: WebSocket connect<br/>/api/v1/acme-corp/connectors/{id}/mcp
+    Claude->>API: WebSocket connect /api/v1/acme-corp/connectors/{id}/mcp
     API->>DB: Load tenant, connector, oauth
     DB->>API: Return configuration
     API->>Claude: WebSocket connected
@@ -403,7 +456,7 @@ sequenceDiagram
     API->>Connector: execute_tool()
     Connector->>DB: Get OAuth credential
     DB->>Connector: access_token
-    Connector->>ExtAPI: GET /user/repos<br/>Bearer {token}
+    Connector->>ExtAPI: GET /user/repos Bearer {token}
     ExtAPI->>Connector: Repository list JSON
     Connector->>API: Format response
     API->>Claude: MCP TextContent response
@@ -484,31 +537,46 @@ graph LR
 graph TB
     subgraph "Kubernetes Cluster"
         subgraph "Ingress"
-            ING[Ingress Controller<br/>NGINX/Traefik]
+            ING["Ingress Controller
+NGINX/Traefik"]
         end
 
         subgraph "Application Pods"
-            FE1[Frontend Pod 1<br/>React:3001]
-            FE2[Frontend Pod 2<br/>React:3001]
-            BE1[Backend Pod 1<br/>FastAPI:8000]
-            BE2[Backend Pod 2<br/>FastAPI:8000]
-            BE3[Backend Pod 3<br/>FastAPI:8000]
+            FE1["Frontend Pod 1
+React:3001"]
+            FE2["Frontend Pod 2
+React:3001"]
+            BE1["Backend Pod 1
+FastAPI:8000"]
+            BE2["Backend Pod 2
+FastAPI:8000"]
+            BE3["Backend Pod 3
+FastAPI:8000"]
         end
 
         subgraph "Services"
-            FE_SVC[Frontend Service<br/>ClusterIP]
-            BE_SVC[Backend Service<br/>ClusterIP]
+            FE_SVC["Frontend Service
+ClusterIP"]
+            BE_SVC["Backend Service
+ClusterIP"]
         end
 
         subgraph "Configuration"
-            CM[ConfigMap<br/>- API URLs<br/>- Feature flags]
-            SEC[Secrets<br/>- OAuth credentials<br/>- DB password<br/>- SECRET_KEY]
+            CM["ConfigMap
+- API URLs
+- Feature flags"]
+            SEC["Secrets
+- OAuth credentials
+- DB password
+- SECRET_KEY"]
         end
     end
 
     subgraph "Managed Services"
-        DB_MANAGED[Managed PostgreSQL<br/>or Supabase]
-        REDIS[Redis Cache<br/>Optional]
+        DB_MANAGED["Managed PostgreSQL
+or Supabase"]
+        REDIS["Redis Cache
+Optional"]
     end
 
     USERS[Users/Clients]
@@ -587,24 +655,31 @@ graph TB
 
         subgraph "Authentication"
             OAUTH[OAuth 2.0 Flow]
-            JWT[JWT Tokens<br/>Optional]
-            STATE[State Token<br/>CSRF Protection]
+            JWT["JWT Tokens
+Optional"]
+            STATE["State Token
+CSRF Protection"]
         end
 
         subgraph "Authorization"
-            TENANT_ISO[Tenant Isolation<br/>Path-based]
-            FK_CHECK[Foreign Key<br/>Constraints]
+            TENANT_ISO["Tenant Isolation
+Path-based"]
+            FK_CHECK["Foreign Key
+Constraints"]
         end
 
         subgraph "Data Protection"
-            TOKEN_ENC[Token Encryption<br/>at rest]
-            SECRET_MGR[Secret Management<br/>K8s Secrets/Vault]
+            TOKEN_ENC["Token Encryption
+at rest"]
+            SECRET_MGR["Secret Management
+K8s Secrets/Vault"]
             ENV_VAR[Environment Variables]
         end
 
         subgraph "Input Validation"
             PYDANTIC[Pydantic Models]
-            SQL_PREVENT[SQLAlchemy ORM<br/>SQL Injection Prevention]
+            SQL_PREVENT["SQLAlchemy ORM
+SQL Injection Prevention"]
         end
     end
 
@@ -647,9 +722,15 @@ graph LR
     end
 
     subgraph "Metrics & Logs"
-        METRICS[Prometheus Metrics<br/>- Request count<br/>- Response time<br/>- Error rate]
-        LOGS[Structured Logs<br/>- JSON format<br/>- Log levels]
-        TRACES[Distributed Tracing<br/>Optional: Jaeger/OTEL]
+        METRICS["Prometheus Metrics
+- Request count
+- Response time
+- Error rate"]
+        LOGS["Structured Logs
+- JSON format
+- Log levels"]
+        TRACES["Distributed Tracing
+Optional: Jaeger/OTEL"]
     end
 
     subgraph "Monitoring"
