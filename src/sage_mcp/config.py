@@ -81,6 +81,22 @@ class Settings(BaseSettings):
         env="GOOGLE_DOCS_SCOPES"
     )
 
+    # OAuth Configuration - Notion
+    notion_client_id: Optional[str] = Field(
+        default=None, env="NOTION_CLIENT_ID"
+    )
+    notion_client_secret: Optional[str] = Field(
+        default=None, env="NOTION_CLIENT_SECRET"
+    )
+
+    # OAuth Configuration - Zoom
+    zoom_client_id: Optional[str] = Field(
+        default=None, env="ZOOM_CLIENT_ID"
+    )
+    zoom_client_secret: Optional[str] = Field(
+        default=None, env="ZOOM_CLIENT_SECRET"
+    )
+
     # OAuth Configuration - Jira
     jira_client_id: Optional[str] = Field(
         default=None, env="JIRA_CLIENT_ID"
