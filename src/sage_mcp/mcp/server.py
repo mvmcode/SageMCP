@@ -16,9 +16,10 @@ from ..connectors.registry import connector_registry
 class MCPServer:
     """Multi-tenant MCP server implementation."""
 
-    def __init__(self, tenant_slug: str, connector_id: str = None):
+    def __init__(self, tenant_slug: str, connector_id: str = None, user_token: str = None):
         self.tenant_slug = tenant_slug
         self.connector_id = connector_id
+        self.user_token = user_token  # User-provided OAuth token (optional)
         self.tenant: Optional[Tenant] = None
         self.connector: Optional[Connector] = None  # Single connector
         self.connectors: List[Connector] = []  # For backward compatibility, will contain single connector
@@ -277,7 +278,26 @@ class MCPServer:
             return f"Error reading resource: {str(e)}"
 
     async def _get_oauth_credential(self, tenant_id: str, provider: str) -> Optional[OAuthCredential]:
-        """Get OAuth credential for a tenant and provider."""
+        """Get OAuth credential for a tenant and provider.
+
+        Priority order:
+        1. User-provided token (passed in request) - if available, create temp credential
+        2. Tenant-level credential (stored in database) - fallback option
+        """
+        # If user token provided, create a temporary OAuthCredential with it
+        if self.user_token:
+            # Create a temporary OAuthCredential object with the user's token
+            # This avoids database lookup and uses the user's personal OAuth identity
+            temp_cred = OAuthCredential(
+                provider=provider,
+                tenant_id=tenant_id,
+                access_token=self.user_token,
+                token_type="Bearer",
+                is_active=True
+            )
+            return temp_cred
+
+        # Fallback to tenant-level credential from database
         async with get_db_context() as session:
             from sqlalchemy import select
 

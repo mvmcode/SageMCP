@@ -12,10 +12,11 @@ from .server import MCPServer
 class MCPTransport:
     """Transport layer for MCP communication."""
 
-    def __init__(self, tenant_slug: str, connector_id: str = None):
+    def __init__(self, tenant_slug: str, connector_id: str = None, user_token: str = None):
         self.tenant_slug = tenant_slug
         self.connector_id = connector_id
-        self.mcp_server = MCPServer(tenant_slug, connector_id)
+        self.user_token = user_token  # User-provided OAuth token (optional)
+        self.mcp_server = MCPServer(tenant_slug, connector_id, user_token)
         self.initialized = False
 
     async def initialize(self) -> bool:
@@ -43,6 +44,24 @@ class MCPTransport:
                 try:
                     data = await websocket.receive_text()
                     message = json.loads(data)
+
+                    # Check for extension method to set user token
+                    method = message.get("method")
+                    if method == "auth/setUserToken":
+                        # Extension method to set user OAuth token for this session
+                        token = message.get("params", {}).get("token")
+                        if token:
+                            self.user_token = token
+                            self.mcp_server.user_token = token
+
+                        # Acknowledge (notifications don't need response, but we send one for confirmation)
+                        if "id" in message:
+                            await websocket.send_text(json.dumps({
+                                "jsonrpc": "2.0",
+                                "id": message.get("id"),
+                                "result": {"status": "token_set"}
+                            }))
+                        continue
 
                     # Handle the message through HTTP-style processing
                     response = await self.handle_http_message(message)

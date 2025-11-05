@@ -157,6 +157,52 @@ Add to your Claude Desktop config:
 
 Sage MCP provides production-ready connectors for popular development and collaboration tools. Each connector includes full OAuth 2.0 integration and comprehensive tool coverage.
 
+### User-Level OAuth Tokens
+
+SageMCP supports both **tenant-level** and **user-level** OAuth authentication:
+
+- **Tenant-level OAuth** (default): Single OAuth credential shared by all users in a tenant
+- **User-level OAuth**: Each user passes their own OAuth token per request
+
+**HTTP POST requests** (use custom header):
+```bash
+curl -X POST http://localhost:8000/api/v1/{tenant-slug}/connectors/{connector-id}/mcp \
+  -H "X-User-OAuth-Token: <user-oauth-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+**WebSocket connections** (use extension message):
+```javascript
+const ws = new WebSocket('ws://localhost:8000/api/v1/{tenant-slug}/connectors/{connector-id}/mcp');
+
+ws.onopen = () => {
+  // Set user token before initialize
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'auth/setUserToken',
+    params: { token: '<user-oauth-token>' }
+  }));
+
+  // Then proceed with normal MCP flow
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2024-11-05' }
+  }));
+};
+```
+
+**Priority**: User token (if provided) → Tenant credential (fallback)
+
+**Use cases:**
+- Multi-user SaaS apps where each user needs their own OAuth identity
+- Testing with different user accounts
+- Per-user access control and audit trails
+
+**Note**: User tokens are for external APIs (GitHub, Slack, etc.), separate from MCP protocol-level authentication.
+
 <div align="left">
 
 #### <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="24" height="24" style="vertical-align: middle;" /> GitHub
