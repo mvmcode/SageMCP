@@ -43,6 +43,8 @@ class NotionConnector(BaseConnector):
     ) -> httpx.Response:
         """Make an authenticated request to Notion API.
 
+        Uses shared HTTP client with connection pooling for better performance.
+
         Args:
             method: HTTP method (GET, POST, PATCH, DELETE)
             url: Full URL to request
@@ -55,16 +57,19 @@ class NotionConnector(BaseConnector):
         Raises:
             httpx.HTTPStatusError: If request fails
         """
+        from .http_client import get_http_client
+
         headers = kwargs.get("headers", {})
         headers["Authorization"] = f"Bearer {oauth_cred.access_token}"
         headers["Notion-Version"] = self.NOTION_VERSION
         headers["Content-Type"] = "application/json"
         kwargs["headers"] = headers
 
-        async with httpx.AsyncClient() as client:
-            response = await client.request(method, url, **kwargs)
-            response.raise_for_status()
-            return response
+        # Use shared client with connection pooling
+        client = get_http_client()
+        response = await client.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
 
     async def get_tools(
         self,
