@@ -45,7 +45,8 @@ export enum ConnectorType {
   LINEAR = 'linear',
   SLACK = 'slack',
   TEAMS = 'teams',
-  DISCORD = 'discord'
+  DISCORD = 'discord',
+  ZOOM = 'zoom'
 }
 
 export interface MCPServerInfo {

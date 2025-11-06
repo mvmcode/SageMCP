@@ -16,12 +16,16 @@ import { tenantsApi, connectorsApi } from '@/utils/api'
 import { ConnectorType } from '@/types'
 import { cn } from '@/utils/cn'
 import ConnectorModal from '@/components/ConnectorModal'
-import { GitHubLogo, SlackLogo } from '@/components/icons/BrandLogos'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo, NotionLogo, ZoomLogo } from '@/components/icons/BrandLogos'
 
 const ConnectorIcon = ({ type }: { type: ConnectorType }) => {
   const icons: Record<string, React.ComponentType<{ className?: string }>> = {
     [ConnectorType.GITHUB]: GitHubLogo,
     [ConnectorType.SLACK]: SlackLogo,
+    [ConnectorType.GOOGLE_DOCS]: GoogleDocsLogo,
+    [ConnectorType.JIRA]: JiraLogo,
+    [ConnectorType.NOTION]: NotionLogo,
+    [ConnectorType.ZOOM]: ZoomLogo,
   }
 
   const Icon = icons[type] || Settings
@@ -157,18 +161,22 @@ const ConnectorCard = ({
   )
 }
 
-const ConnectorTypeFilter = ({ 
-  selected, 
-  onChange 
-}: { 
+const ConnectorTypeFilter = ({
+  selected,
+  onChange
+}: {
   selected: ConnectorType | 'all'
-  onChange: (type: ConnectorType | 'all') => void 
+  onChange: (type: ConnectorType | 'all') => void
 }) => {
   // Only show implemented connector types
   const types = [
     { value: 'all', label: 'All Types', icon: Filter },
     { value: ConnectorType.GITHUB, label: 'GitHub', icon: GitHubLogo },
     { value: ConnectorType.SLACK, label: 'Slack', icon: SlackLogo },
+    { value: ConnectorType.GOOGLE_DOCS, label: 'Google Docs', icon: GoogleDocsLogo },
+    { value: ConnectorType.JIRA, label: 'Jira', icon: JiraLogo },
+    { value: ConnectorType.NOTION, label: 'Notion', icon: NotionLogo },
+    { value: ConnectorType.ZOOM, label: 'Zoom', icon: ZoomLogo },
   ]
 
   return (

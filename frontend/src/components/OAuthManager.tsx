@@ -15,7 +15,7 @@ import { oauthApi } from '@/utils/api'
 import { OAuthProvider, OAuthCredential, OAuthConfig } from '@/types'
 import { cn } from '@/utils/cn'
 import OAuthConfigModal from './OAuthConfigModal'
-import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo } from './icons/BrandLogos'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo, NotionLogo, ZoomLogo } from './icons/BrandLogos'
 
 const ProviderIcon = ({ provider }: { provider: string }) => {
   const icons = {
@@ -23,6 +23,8 @@ const ProviderIcon = ({ provider }: { provider: string }) => {
     slack: SlackLogo,
     google_docs: GoogleDocsLogo,
     jira: JiraLogo,
+    notion: NotionLogo,
+    zoom: ZoomLogo,
   }
 
   const Icon = icons[provider as keyof typeof icons] || Settings
