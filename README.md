@@ -6,6 +6,11 @@
   <p>
     A scalable platform for hosting MCP (Model Context Protocol) servers with OAuth integration and connector plugins.
   </p>
+
+  [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+  [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+  [![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
+  [![Build Status](https://img.shields.io/github/actions/workflow/status/mvmcode/SageMCP/ci.yml?branch=main)](https://github.com/mvmcode/SageMCP/actions)
 </div>
 
 ## About The Project
