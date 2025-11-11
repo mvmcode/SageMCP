@@ -133,12 +133,43 @@ graph TB
 
 ## Usage
 
-### Quick Start
+### Management Options
+
+SageMCP provides two ways to manage your platform:
+
+1. **Web Interface** - Visual interface at http://localhost:3001
+2. **Command-Line Interface (CLI)** - Powerful CLI for automation and DevOps
+
+### Quick Start (Web Interface)
 
 1. Open the web interface at http://localhost:3001
 2. Create a new tenant
 3. Add a connector (e.g., GitHub) and configure OAuth
 4. Copy the MCP server URL for Claude Desktop
+
+### Quick Start (CLI)
+
+```bash
+# Install CLI
+pip install -e ".[cli]"
+
+# Initialize configuration
+sagemcp init
+
+# Create a tenant
+sagemcp tenant create --slug my-tenant --name "My Tenant"
+
+# Add a connector
+sagemcp connector create my-tenant --type github --name "GitHub"
+
+# Configure OAuth (opens browser)
+sagemcp oauth authorize my-tenant github
+
+# Test MCP tools
+sagemcp mcp tools my-tenant <connector-id>
+```
+
+**[📖 Full CLI Documentation →](src/sage_mcp/cli/README.md)**
 
 ### Claude Desktop Configuration
 
@@ -266,6 +297,56 @@ ws.onopen = () => {
 - Confluence
 
 For general OAuth setup guidance, see the [OAuth Configuration Guide](.github/docs/oauth-setup.md).
+
+## Command-Line Interface (CLI)
+
+SageMCP includes a powerful CLI for managing tenants, connectors, OAuth, and testing MCP tools.
+
+### Installation
+
+```bash
+# Install with CLI support
+pip install -e ".[cli]"
+
+# Verify installation
+sagemcp --version
+```
+
+### Quick Examples
+
+```bash
+# Initialize configuration
+sagemcp init
+
+# Manage tenants
+sagemcp tenant list
+sagemcp tenant create --slug my-tenant --name "My Tenant"
+
+# Manage connectors
+sagemcp connector list my-tenant
+sagemcp connector create my-tenant --type github --name "GitHub"
+
+# Configure OAuth
+sagemcp oauth authorize my-tenant github
+
+# Test MCP tools
+sagemcp mcp tools my-tenant <connector-id>
+
+# Interactive REPL
+sagemcp mcp interactive my-tenant <connector-id>
+```
+
+### Features
+
+- **Multi-Profile Support** - Manage dev/staging/prod environments
+- **Rich Terminal Output** - Beautiful tables and formatted output
+- **Interactive REPL** - Test MCP tools interactively
+- **JSON/YAML Export** - Machine-readable output for automation
+- **CI/CD Ready** - Scriptable commands with proper exit codes
+
+**[📖 Complete CLI Documentation →](src/sage_mcp/cli/README.md)**
+
+**[📐 CLI Design Document →](docs/cli-design.md)**
 
 ## Development
 
