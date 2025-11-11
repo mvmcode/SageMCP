@@ -1,6 +1,6 @@
 """Test models module."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sage_mcp.models.tenant import Tenant
 from sage_mcp.models.connector import Connector, ConnectorType
@@ -118,7 +118,7 @@ class TestOAuthCredential:
             refresh_token="refresh_token_123",
             token_type="Bearer",
             scopes="repo,user:email",
-            expires_at=datetime.utcnow() + timedelta(hours=1)
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
         )
 
         db_session.add(credential)
@@ -138,7 +138,7 @@ class TestOAuthCredential:
             provider="github",
             provider_user_id="123",
             access_token="token",
-            expires_at=datetime.utcnow() - timedelta(hours=1)
+            expires_at=datetime.now(timezone.utc) - timedelta(hours=1)
         )
 
         # Create non-expired credential
@@ -147,7 +147,7 @@ class TestOAuthCredential:
             provider="gitlab",
             provider_user_id="456",
             access_token="token",
-            expires_at=datetime.utcnow() + timedelta(hours=1)
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
         )
 
         # Create credential with no expiration

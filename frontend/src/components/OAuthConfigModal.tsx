@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import { oauthApi } from '@/utils/api'
 import { OAuthConfigCreate } from '@/types'
 import { cn } from '@/utils/cn'
-import { GitHubLogo, SlackLogo } from './icons/BrandLogos'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo } from './icons/BrandLogos'
 
 const oauthConfigSchema = z.object({
   provider: z.string().min(1, 'Provider is required'),
@@ -23,6 +23,8 @@ const ProviderIcon = ({ provider }: { provider: string }) => {
   const icons = {
     github: GitHubLogo,
     slack: SlackLogo,
+    google_docs: GoogleDocsLogo,
+    jira: JiraLogo,
   }
 
   const Icon = icons[provider as keyof typeof icons] || Settings
@@ -149,6 +151,8 @@ export default function OAuthConfigModal({
                 'p-2 rounded-lg',
                 provider === 'github' ? 'bg-gray-900 text-white' :
                 provider === 'slack' ? 'bg-purple-600 text-white' :
+                provider === 'google_docs' ? 'bg-blue-500 text-white' :
+                provider === 'jira' ? 'bg-blue-600 text-white' :
                 'bg-gray-600 text-white'
               )}>
                 <ProviderIcon provider={provider} />

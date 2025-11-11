@@ -19,17 +19,35 @@ class DatabaseManager:
 
     def initialize(self):
         """Initialize database engine and session factory."""
+        # Get the appropriate database URL based on provider
+        # For Supabase, always use the generated URL regardless of DATABASE_URL env var
+        if self.settings.database_provider == "supabase":
+            database_url = self.settings.get_database_url()
+        else:
+            database_url = self.settings.database_url
+        
         # Convert postgres:// to postgresql+asyncpg://
-        database_url = str(self.settings.database_url)
         if database_url.startswith("postgresql://"):
             database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
 
+        # Add connection arguments for Supabase compatibility
+        connect_args = {}
+        if self.settings.database_provider == "supabase":
+            # SSL configuration for Supabase connection pooler
+            connect_args.update({
+                "ssl": "require",
+                "server_settings": {
+                    "application_name": "sagemcp"
+                }
+            })
+
         self.engine = create_async_engine(
             database_url,
             poolclass=NullPool if self.settings.environment == "test" else None,
             echo=self.settings.debug,
+            connect_args=connect_args,
         )
 
         self.session_factory = async_sessionmaker(
