@@ -51,8 +51,10 @@ async def upgrade_add_connector_tool_states(engine: AsyncEngine = None):
 
         if not table_exists:
             # Create only the connector_tool_states table
-            await conn.run_sync(lambda sync_conn:
-                ConnectorToolState.__table__.create(sync_conn, checkfirst=True)
+            await conn.run_sync(
+                lambda sync_conn: ConnectorToolState.__table__.create(
+                    sync_conn, checkfirst=True
+                )
             )
             print("✓ Created connector_tool_states table")
         else:
