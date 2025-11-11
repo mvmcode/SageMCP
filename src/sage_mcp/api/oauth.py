@@ -3,7 +3,7 @@
 import os
 import secrets
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -519,7 +519,7 @@ async def oauth_callback(
     # Calculate expiration time
     expires_at = None
     if "expires_in" in token_info:
-        expires_at = datetime.utcnow() + timedelta(
+        expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=int(token_info["expires_in"])
         )
 
@@ -542,7 +542,7 @@ async def oauth_callback(
         existing.scopes = token_info.get("scope")
         existing.provider_data = str(user_info)
         existing.is_active = True
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(timezone.utc)
     else:
         # Create new credential
         oauth_cred = OAuthCredential(
