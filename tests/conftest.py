@@ -15,6 +15,7 @@ from sqlalchemy.pool import StaticPool
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["DATABASE_PROVIDER"] = "postgresql"  # Use postgresql for tests (even with SQLite)
 os.environ["ENVIRONMENT"] = "test"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
 
 from sage_mcp.main import app
 from sage_mcp.database.connection import get_db_session, db_manager
