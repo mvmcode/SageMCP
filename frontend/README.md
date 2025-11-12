@@ -40,7 +40,7 @@ npm install
 npm run dev
 ```
 
-3. Open http://localhost:3000 in your browser
+3. Open http://localhost:3001 in your browser
 
 ### Available Scripts
 
@@ -64,7 +64,7 @@ docker-compose up frontend
 docker build -t sage-mcp-frontend .
 
 # Run container
-docker run -p 3000:80 sage-mcp-frontend
+docker run -p 3001:80 sage-mcp-frontend
 ```
 
 ## Environment Variables

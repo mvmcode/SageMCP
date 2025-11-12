@@ -1,15 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { 
-  Key, 
-  ExternalLink, 
-  Trash2, 
-  Clock, 
-  CheckCircle, 
+import {
+  Key,
+  ExternalLink,
+  Trash2,
+  Clock,
+  CheckCircle,
   XCircle,
-  Github,
-  Gitlab,
   Settings,
   Wrench
 } from 'lucide-react'
@@ -17,14 +15,18 @@ import { oauthApi } from '@/utils/api'
 import { OAuthProvider, OAuthCredential, OAuthConfig } from '@/types'
 import { cn } from '@/utils/cn'
 import OAuthConfigModal from './OAuthConfigModal'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo, NotionLogo, ZoomLogo } from './icons/BrandLogos'
 
 const ProviderIcon = ({ provider }: { provider: string }) => {
   const icons = {
-    github: Github,
-    gitlab: Gitlab,
-    google: Settings, // Use Settings as placeholder for Google
+    github: GitHubLogo,
+    slack: SlackLogo,
+    google_docs: GoogleDocsLogo,
+    jira: JiraLogo,
+    notion: NotionLogo,
+    zoom: ZoomLogo,
   }
-  
+
   const Icon = icons[provider as keyof typeof icons] || Settings
   return <Icon className="h-5 w-5" />
 }
@@ -68,6 +70,18 @@ export default function OAuthManager({ tenantSlug, onCredentialChange, filterPro
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to revoke OAuth credential')
+    }
+  })
+
+  const deleteConfigMutation = useMutation({
+    mutationFn: (provider: string) => oauthApi.deleteConfig(tenantSlug, provider),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['oauth-configs', tenantSlug] })
+      queryClient.invalidateQueries({ queryKey: ['oauth-providers'] })
+      toast.success('OAuth configuration deleted successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to delete OAuth configuration')
     }
   })
 
@@ -137,6 +151,12 @@ export default function OAuthManager({ tenantSlug, onCredentialChange, filterPro
   const handleRevoke = (provider: string) => {
     if (confirm(`Are you sure you want to revoke access to ${provider}? This will disconnect all connectors using this credential.`)) {
       revokeMutation.mutate(provider)
+    }
+  }
+
+  const handleReconfigure = (provider: OAuthProvider) => {
+    if (confirm(`Are you sure you want to reconfigure ${provider.name}? This will delete the current OAuth configuration and you'll need to set it up again.`)) {
+      deleteConfigMutation.mutate(provider.id)
     }
   }
 
@@ -223,8 +243,9 @@ export default function OAuthManager({ tenantSlug, onCredentialChange, filterPro
                   <div className={cn(
                     'p-2 rounded-lg',
                     provider.id === 'github' ? 'bg-gray-900 text-white' :
-                    provider.id === 'gitlab' ? 'bg-orange-500 text-white' :
-                    provider.id === 'google' ? 'bg-blue-500 text-white' :
+                    provider.id === 'slack' ? 'bg-purple-600 text-white' :
+                    provider.id === 'google_docs' ? 'bg-blue-500 text-white' :
+                    provider.id === 'jira' ? 'bg-blue-600 text-white' :
                     'bg-gray-600 text-white'
                   )}>
                     <ProviderIcon provider={provider.id} />
@@ -276,32 +297,54 @@ export default function OAuthManager({ tenantSlug, onCredentialChange, filterPro
                       Configure
                     </button>
                   ) : isConnected && !expired ? (
-                    <button
-                      onClick={() => handleRevoke(provider.id)}
-                      disabled={revokeMutation.isPending}
-                      className="btn-secondary text-xs flex items-center"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Revoke
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleRevoke(provider.id)}
+                        disabled={revokeMutation.isPending}
+                        className="btn-secondary text-xs flex items-center"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Revoke
+                      </button>
+                      <button
+                        onClick={() => handleReconfigure(provider)}
+                        disabled={deleteConfigMutation.isPending}
+                        className="btn-ghost text-xs flex items-center"
+                      >
+                        <Wrench className="h-3 w-3 mr-1" />
+                        Reconfigure
+                      </button>
+                    </>
                   ) : (
-                    <button
-                      onClick={() => handleConnect(provider)}
-                      disabled={isConnecting}
-                      className="btn-primary text-xs flex items-center"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <div className="animate-spin h-3 w-3 mr-1 border border-white border-t-transparent rounded-full"></div>
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          {expired ? 'Reconnect' : 'Connect'}
-                        </>
+                    <>
+                      <button
+                        onClick={() => handleConnect(provider)}
+                        disabled={isConnecting}
+                        className="btn-primary text-xs flex items-center"
+                      >
+                        {isConnecting ? (
+                          <>
+                            <div className="animate-spin h-3 w-3 mr-1 border border-white border-t-transparent rounded-full"></div>
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            {expired ? 'Reconnect' : 'Connect'}
+                          </>
+                        )}
+                      </button>
+                      {isConfigured && (
+                        <button
+                          onClick={() => handleReconfigure(provider)}
+                          disabled={deleteConfigMutation.isPending}
+                          className="btn-ghost text-xs flex items-center"
+                        >
+                          <Wrench className="h-3 w-3 mr-1" />
+                          Reconfigure
+                        </button>
                       )}
-                    </button>
+                    </>
                   )}
                 </div>
               </div>

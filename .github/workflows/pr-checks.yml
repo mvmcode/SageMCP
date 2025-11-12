@@ -17,7 +17,7 @@ jobs:
       frontend: ${{ steps.check.outputs.frontend }}
       docker: ${{ steps.check.outputs.docker }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 0
     
@@ -67,10 +67,10 @@ jobs:
     if: needs.changes.outputs.backend == 'true'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
 
@@ -94,10 +94,9 @@ jobs:
     if: needs.changes.outputs.frontend == 'true'
 
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@v5
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '18'
         cache: 'npm'
@@ -105,7 +104,10 @@ jobs:
 
     - name: Install dependencies
       working-directory: frontend
-      run: npm ci
+      run: |
+        npm ci --include=optional
+        # Workaround for rollup optional dependencies issue
+        npm install --no-save @rollup/rollup-linux-x64-gnu
 
     - name: Run type checking
       working-directory: frontend
@@ -130,13 +132,13 @@ jobs:
     if: needs.changes.outputs.docker == 'true'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: Test backend docker build
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: ./Dockerfile
@@ -144,7 +146,7 @@ jobs:
         tags: sagemcp/backend:pr-test
 
     - name: Test frontend docker build
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: ./frontend
         file: ./frontend/Dockerfile
@@ -156,12 +158,12 @@ jobs:
         echo "DATABASE_URL=postgresql://sage_mcp:sage_mcp_password@postgres:5432/sage_mcp" > .env
         echo "SECRET_KEY=test-secret-key" >> .env
         echo "ENVIRONMENT=test" >> .env
-        docker-compose config
-        docker-compose up -d --build
+        docker compose config
+        docker compose up -d --build
         sleep 30
         curl -f http://localhost:8000/health
         curl -f http://localhost:3000
-        docker-compose down -v
+        docker compose down -v
 
   comment-coverage:
     name: Comment Coverage
@@ -173,7 +175,7 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Comment PR with coverage
       uses: actions/github-script@v6

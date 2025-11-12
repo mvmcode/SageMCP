@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
 
@@ -99,26 +99,44 @@ jobs:
         **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$CURRENT_TAG
         EOF
 
-    - name: Build and push release images
-      run: |
-        # Build backend image
-        docker buildx build \
-          --platform linux/amd64,linux/arm64 \
-          --tag ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }} \
-          --tag ghcr.io/${{ github.repository }}/backend:latest \
-          --push \
-          .
-        
-        # Build frontend image
-        docker buildx build \
-          --platform linux/amd64,linux/arm64 \
-          --tag ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }} \
-          --tag ghcr.io/${{ github.repository }}/frontend:latest \
-          --push \
-          ./frontend
+    - name: Build and push backend image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/backend:${{ steps.version.outputs.VERSION }}
+          ghcr.io/${{ github.repository }}/backend:latest
+        labels: |
+          org.opencontainers.image.title=SageMCP Backend
+          org.opencontainers.image.description=Multi-tenant MCP Platform Backend
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+          org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.licenses=MIT
+
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v6
+      with:
+        context: ./frontend
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.VERSION }}
+          ghcr.io/${{ github.repository }}/frontend:latest
+        labels: |
+          org.opencontainers.image.title=SageMCP Frontend
+          org.opencontainers.image.description=Multi-tenant MCP Platform Frontend
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+          org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.licenses=MIT
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         name: Release ${{ steps.version.outputs.VERSION }}
@@ -139,7 +157,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 

@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
-import { X, Github, Gitlab, MessageSquare, Zap, Key } from 'lucide-react'
+import { X, Key } from 'lucide-react'
 import { tenantsApi, connectorsApi } from '@/utils/api'
 import { ConnectorType, ConnectorCreate } from '@/types'
 import { cn } from '@/utils/cn'
+import { GitHubLogo, SlackLogo, GoogleDocsLogo, JiraLogo, NotionLogo, ZoomLogo } from './icons/BrandLogos'
 
 const connectorSchema = z.object({
   tenant_slug: z.string().min(1, 'Please select a tenant'),
@@ -16,7 +17,6 @@ const connectorSchema = z.object({
   }),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   description: z.string().optional(),
-  configuration: z.string().optional(),
 })
 
 type ConnectorFormData = z.infer<typeof connectorSchema>
@@ -24,55 +24,74 @@ type ConnectorFormData = z.infer<typeof connectorSchema>
 const ConnectorTypeCard = ({
   type,
   selected,
+  disabled,
   onSelect,
 }: {
   type: ConnectorType
   selected: boolean
+  disabled?: boolean
   onSelect: (type: ConnectorType) => void
 }) => {
-  const configs = {
+  // Only include implemented connector types
+  const configs: Record<string, {
+    icon: React.ComponentType<{ className?: string }>
+    name: string
+    description: string
+    color: string
+  }> = {
     [ConnectorType.GITHUB]: {
-      icon: Github,
+      icon: GitHubLogo,
       name: 'GitHub',
       description: 'Connect to GitHub repositories and issues',
       color: 'bg-gray-900 text-white',
     },
-    [ConnectorType.GITLAB]: {
-      icon: Gitlab,
-      name: 'GitLab',
-      description: 'Connect to GitLab projects and merge requests',
-      color: 'bg-orange-500 text-white',
-    },
     [ConnectorType.SLACK]: {
-      icon: MessageSquare,
+      icon: SlackLogo,
       name: 'Slack',
       description: 'Connect to Slack channels and messages',
       color: 'bg-purple-600 text-white',
     },
-    [ConnectorType.DISCORD]: {
-      icon: MessageSquare,
-      name: 'Discord',
-      description: 'Connect to Discord servers and channels',
-      color: 'bg-indigo-600 text-white',
+    [ConnectorType.GOOGLE_DOCS]: {
+      icon: GoogleDocsLogo,
+      name: 'Google Docs',
+      description: 'Create, read, and manage Google Docs documents',
+      color: 'bg-blue-500 text-white',
     },
-    [ConnectorType.CUSTOM]: {
-      icon: Zap,
-      name: 'Custom',
-      description: 'Build your own custom connector',
-      color: 'bg-gray-600 text-white',
+    [ConnectorType.JIRA]: {
+      icon: JiraLogo,
+      name: 'Jira',
+      description: 'Access Jira projects, issues, sprints, and boards',
+      color: 'bg-blue-600 text-white',
+    },
+    [ConnectorType.NOTION]: {
+      icon: NotionLogo,
+      name: 'Notion',
+      description: 'Connect to Notion pages and databases',
+      color: 'bg-gray-800 text-white',
+    },
+    [ConnectorType.ZOOM]: {
+      icon: ZoomLogo,
+      name: 'Zoom',
+      description: 'Manage Zoom meetings and recordings',
+      color: 'bg-blue-500 text-white',
     },
   }
 
   const config = configs[type]
+  if (!config) return null // Return null if connector type is not implemented
+
   const Icon = config.icon
 
   return (
     <button
       type="button"
-      onClick={() => onSelect(type)}
+      onClick={() => !disabled && onSelect(type)}
+      disabled={disabled}
       className={cn(
-        'p-4 border-2 rounded-lg transition-all text-left w-full',
-        selected
+        'p-4 border-2 rounded-lg transition-all text-left w-full relative',
+        disabled
+          ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+          : selected
           ? 'border-primary-500 bg-primary-50'
           : 'border-gray-200 hover:border-gray-300'
       )}
@@ -83,7 +102,9 @@ const ConnectorTypeCard = ({
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-gray-900">{config.name}</h4>
-          <p className="text-xs text-gray-500 mt-1">{config.description}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {disabled ? 'Already exists for this tenant' : config.description}
+          </p>
         </div>
       </div>
     </button>
@@ -123,6 +144,17 @@ export default function ConnectorModal({
     enabled: isOpen
   })
 
+  // Fetch existing connectors for the selected tenant to check for duplicates
+  const selectedTenantSlug = preselectedTenant || undefined
+  const { data: existingConnectors = [] } = useQuery({
+    queryKey: ['connectors', selectedTenantSlug],
+    queryFn: () => selectedTenantSlug ? connectorsApi.list(selectedTenantSlug).then(res => res.data) : Promise.resolve([]),
+    enabled: isOpen && !!selectedTenantSlug
+  })
+
+  // Get list of connector types already in use
+  const usedConnectorTypes = new Set(existingConnectors.map(c => c.connector_type))
+
   const createMutation = useMutation({
     mutationFn: ({ tenant_slug, ...data }: ConnectorFormData) => 
       connectorsApi.create(tenant_slug, data as ConnectorCreate),
@@ -156,11 +188,16 @@ export default function ConnectorModal({
   }
 
   const requiresOAuth = (type: ConnectorType) => {
-    return [ConnectorType.GITHUB, ConnectorType.GITLAB].includes(type)
+    return [ConnectorType.GITHUB, ConnectorType.SLACK, ConnectorType.GOOGLE_DOCS, ConnectorType.JIRA, ConnectorType.NOTION, ConnectorType.ZOOM].includes(type)
   }
 
   const onSubmit = (data: ConnectorFormData) => {
-    createMutation.mutate(data)
+    // Add configuration as null since it's not used yet
+    const payload = {
+      ...data,
+      configuration: null
+    }
+    createMutation.mutate(payload as any)
   }
 
   console.log('ConnectorModal render:', { isOpen, step, selectedType })
@@ -194,11 +231,13 @@ export default function ConnectorModal({
           <div className="px-6 py-4 max-h-[calc(90vh-120px)] overflow-y-auto">
             {step === 'type' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.values(ConnectorType).map((type) => (
+                {/* Only show implemented connector types */}
+                {[ConnectorType.GITHUB, ConnectorType.SLACK, ConnectorType.GOOGLE_DOCS, ConnectorType.JIRA, ConnectorType.NOTION, ConnectorType.ZOOM].map((type) => (
                   <ConnectorTypeCard
                     key={type}
                     type={type}
                     selected={selectedType === type}
+                    disabled={usedConnectorTypes.has(type)}
                     onSelect={handleTypeSelect}
                   />
                 ))}
@@ -272,25 +311,6 @@ export default function ConnectorModal({
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-error-600">{errors.description.message}</p>
-                  )}
-                </div>
-
-                {/* Configuration */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Configuration (JSON)
-                  </label>
-                  <textarea
-                    {...register('configuration')}
-                    className="input-field font-mono text-sm"
-                    rows={6}
-                    placeholder='{"api_key": "your-key", "base_url": "https://api.example.com"}'
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Optional JSON configuration for the connector
-                  </p>
-                  {errors.configuration && (
-                    <p className="mt-1 text-sm text-error-600">{errors.configuration.message}</p>
                   )}
                 </div>
 

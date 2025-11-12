@@ -1,0 +1,95 @@
+🎉 SageMCP has been deployed!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+📋 GETTING STARTED:
+
+1. Get the application URL:
+
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+
+{{- else if contains "NodePort" .Values.frontend.service.type }}
+
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "sagemcp.fullname" . }}-frontend)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Visit http://$NODE_IP:$NODE_PORT to use SageMCP"
+
+{{- else if contains "LoadBalancer" .Values.frontend.service.type }}
+
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        Watch the status with: kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "sagemcp.fullname" . }}-frontend
+
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "sagemcp.fullname" . }}-frontend --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "Visit http://$SERVICE_IP:{{ .Values.frontend.service.port }} to use SageMCP"
+
+{{- else if contains "ClusterIP" .Values.frontend.service.type }}
+
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "sagemcp.name" . }},app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=frontend" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:3000 to use SageMCP"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 3000:$CONTAINER_PORT
+
+{{- end }}
+
+2. Access the API documentation:
+
+{{- if .Values.ingress.enabled }}
+  {{- range $host := .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/api/docs
+  {{- end }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "sagemcp.fullname" . }}-backend 8000:{{ .Values.backend.service.port }}
+  Then visit: http://localhost:8000/docs
+{{- end }}
+
+3. View backend logs:
+
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/component=backend -f
+
+4. View frontend logs:
+
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/component=frontend -f
+
+⚙️  CONFIGURATION:
+
+{{- if not .Values.ingress.enabled }}
+⚠️  Ingress is disabled. To enable external access, update your values:
+  ingress.enabled: true
+  ingress.hosts[0].host: your-domain.com
+{{- end }}
+
+{{- if or (eq .Values.secrets.secretKey "change-me-to-a-secure-random-string") }}
+⚠️  WARNING: Default secret key detected!
+  Generate a secure key: openssl rand -base64 32
+  Update: secrets.secretKey in your values
+{{- end }}
+
+{{- if not .Values.secrets.github.clientId }}
+ℹ️  GitHub OAuth not configured. To enable:
+  secrets.github.clientId: your-github-client-id
+  secrets.github.clientSecret: your-github-client-secret
+{{- end }}
+
+{{- if not .Values.secrets.slack.clientId }}
+ℹ️  Slack OAuth not configured. To enable:
+  secrets.slack.clientId: your-slack-client-id
+  secrets.slack.clientSecret: your-slack-client-secret
+{{- end }}
+
+📚 DOCUMENTATION:
+
+  Homepage: https://github.com/mvmcode/SageMCP
+  Issues: https://github.com/mvmcode/SageMCP/issues
+  Discussions: https://github.com/mvmcode/SageMCP/discussions
+
+🚀 Happy multi-tenanting!

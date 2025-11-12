@@ -27,14 +27,24 @@ async def lifespan(app: FastAPI):
     # Create tables if they don't exist
     await create_tables()
 
+    # Warm up HTTP client (creates connection pool)
+    from .connectors.http_client import get_http_client
+    get_http_client()
+
     print(f"🚀 {settings.app_name} v{settings.app_version} started")
     print(f"🌍 Environment: {settings.environment}")
     print("🗄️  Database: Connected")
+    print("🌐 HTTP Client: Ready with connection pooling")
 
     yield
 
     # Shutdown
     await db_manager.close()
+
+    # Close HTTP client and cleanup connections
+    from .connectors.http_client import close_http_client
+    await close_http_client()
+
     print("👋 Sage MCP shutdown complete")
 
 

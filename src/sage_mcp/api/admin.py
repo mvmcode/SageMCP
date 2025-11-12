@@ -1,7 +1,9 @@
 """Admin API routes for tenant and connector management."""
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.connection import get_db_session
 from ..models.connector import Connector, ConnectorType
+from ..models.connector_tool_state import ConnectorToolState
 from ..models.tenant import Tenant
+from ..connectors.registry import connector_registry
 
 router = APIRouter()
 
@@ -28,6 +32,8 @@ class TenantResponse(BaseModel):
     description: Optional[str]
     is_active: bool
     contact_email: Optional[str]
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -47,9 +53,82 @@ class ConnectorResponse(BaseModel):
     description: Optional[str]
     is_enabled: bool
     configuration: Optional[Dict[str, Any]]
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ToolStateResponse(BaseModel):
+    """Response model for a single tool state."""
+    tool_name: str
+    is_enabled: bool
+    description: Optional[str] = None
+
+
+class ToolsListResponse(BaseModel):
+    """Response model for listing all tools."""
+    tools: List[ToolStateResponse]
+    summary: Dict[str, int]  # e.g., {"total": 24, "enabled": 20, "disabled": 4}
+
+
+class ToolToggleRequest(BaseModel):
+    """Request model for toggling a tool."""
+    is_enabled: bool
+
+
+class BulkToolUpdateRequest(BaseModel):
+    """Request model for bulk tool updates."""
+    tool_name: str
+    is_enabled: bool
+
+
+class BulkToolUpdatesRequest(BaseModel):
+    """Request model for multiple bulk tool updates."""
+    updates: List[BulkToolUpdateRequest]
+
+
+async def populate_tools_for_connector(connector: Connector, session: AsyncSession):
+    """Populate all tools for a connector when it's first created.
+
+    This fetches all available tools from the connector plugin and creates
+    ConnectorToolState records for each one (all enabled by default).
+
+    Args:
+        connector: The connector instance
+        session: Database session
+    """
+    # Get connector plugin instance
+    connector_plugin = connector_registry.get_connector(connector.connector_type)
+
+    if not connector_plugin:
+        # Connector type not registered, skip tool population
+        return
+
+    try:
+        # Get all tools from the connector plugin
+        # Note: OAuth credential may not be configured yet, so we pass None
+        tools = await connector_plugin.get_tools(connector, oauth_cred=None)
+
+        # Create ConnectorToolState records for each tool (all enabled by default)
+        for tool in tools:
+            tool_state = ConnectorToolState(
+                id=uuid.uuid4(),
+                connector_id=connector.id,
+                tool_name=tool.name,
+                is_enabled=True  # Default: all tools enabled
+            )
+            session.add(tool_state)
+
+        await session.commit()
+
+    except Exception as e:
+        # If tool population fails, log but don't fail the connector creation
+        # The connector is still usable, tools just won't have explicit state records
+        print(f"Warning: Failed to populate tools for connector {connector.id}: {e}")
+        await session.rollback()
 
 
 @router.post("/tenants", response_model=TenantResponse, status_code=201)
@@ -122,6 +201,7 @@ async def create_connector(
 ):
     """Create a new connector for a tenant."""
     from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
 
     # Get tenant
     tenant_result = await session.execute(
@@ -131,6 +211,19 @@ async def create_connector(
 
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Check if connector of this type already exists for this tenant
+    existing_connector = await session.execute(
+        select(Connector).where(
+            Connector.tenant_id == tenant.id,
+            Connector.connector_type == connector_data.connector_type
+        )
+    )
+    if existing_connector.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail=f"A {connector_data.connector_type.value} connector already exists for this tenant. Only one connector per type is allowed."
+        )
 
     # Create connector
     connector = Connector(
@@ -142,8 +235,19 @@ async def create_connector(
     )
 
     session.add(connector)
-    await session.commit()
-    await session.refresh(connector)
+
+    try:
+        await session.commit()
+        await session.refresh(connector)
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"A {connector_data.connector_type.value} connector already exists for this tenant. Only one connector per type is allowed."
+        )
+
+    # Auto-populate all tools for this connector (all enabled by default)
+    await populate_tools_for_connector(connector, session)
 
     return connector
 
@@ -421,3 +525,424 @@ async def toggle_connector(
     await session.refresh(connector)
 
     return connector
+
+
+# =====================================================
+# Tool Management Endpoints
+# =====================================================
+
+@router.get(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/tools",
+    response_model=ToolsListResponse
+)
+async def list_connector_tools(
+    tenant_slug: str,
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """List all tools for a connector with their enabled/disabled state."""
+    from sqlalchemy import select
+
+    # Get tenant
+    tenant_result = await session.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(
+            Connector.id == connector_id,
+            Connector.tenant_id == tenant.id
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Get connector plugin to fetch tool definitions
+    connector_plugin = connector_registry.get_connector(connector.connector_type)
+    if not connector_plugin:
+        raise HTTPException(status_code=404, detail="Connector plugin not found")
+
+    # Get all tools from connector plugin (source of truth for definitions)
+    try:
+        all_tools = await connector_plugin.get_tools(connector, oauth_cred=None)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching tools: {str(e)}")
+
+    # Get tool states from database
+    tool_states_result = await session.execute(
+        select(ConnectorToolState).where(ConnectorToolState.connector_id == connector.id)
+    )
+    tool_states = {state.tool_name: state for state in tool_states_result.scalars().all()}
+
+    # Build response
+    tools_response = []
+    enabled_count = 0
+    disabled_count = 0
+
+    for tool in all_tools:
+        state = tool_states.get(tool.name)
+        is_enabled = state.is_enabled if state else True  # Default to enabled
+
+        if is_enabled:
+            enabled_count += 1
+        else:
+            disabled_count += 1
+
+        tools_response.append(ToolStateResponse(
+            tool_name=tool.name,
+            is_enabled=is_enabled,
+            description=tool.description
+        ))
+
+    return ToolsListResponse(
+        tools=tools_response,
+        summary={
+            "total": len(tools_response),
+            "enabled": enabled_count,
+            "disabled": disabled_count
+        }
+    )
+
+
+@router.patch(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/tools/{tool_name}",
+    response_model=ToolStateResponse
+)
+async def toggle_tool(
+    tenant_slug: str,
+    connector_id: str,
+    tool_name: str,
+    request: ToolToggleRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Toggle a specific tool's enabled/disabled state."""
+    from sqlalchemy import select
+
+    # Get tenant
+    tenant_result = await session.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(
+            Connector.id == connector_id,
+            Connector.tenant_id == tenant.id
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Get or create tool state
+    tool_state_result = await session.execute(
+        select(ConnectorToolState).where(
+            ConnectorToolState.connector_id == connector.id,
+            ConnectorToolState.tool_name == tool_name
+        )
+    )
+    tool_state = tool_state_result.scalar_one_or_none()
+
+    if tool_state:
+        # Update existing state
+        tool_state.is_enabled = request.is_enabled
+    else:
+        # Create new state
+        tool_state = ConnectorToolState(
+            id=uuid.uuid4(),
+            connector_id=connector.id,
+            tool_name=tool_name,
+            is_enabled=request.is_enabled
+        )
+        session.add(tool_state)
+
+    await session.commit()
+    await session.refresh(tool_state)
+
+    return ToolStateResponse(
+        tool_name=tool_state.tool_name,
+        is_enabled=tool_state.is_enabled
+    )
+
+
+@router.post(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/tools/bulk-update",
+    response_model=Dict[str, Any]
+)
+async def bulk_update_tools(
+    tenant_slug: str,
+    connector_id: str,
+    request: BulkToolUpdatesRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Bulk update multiple tools' enabled/disabled state."""
+    from sqlalchemy import select
+
+    # Get tenant
+    tenant_result = await session.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(
+            Connector.id == connector_id,
+            Connector.tenant_id == tenant.id
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Process each update
+    updated_count = 0
+    for update in request.updates:
+        # Get or create tool state
+        tool_state_result = await session.execute(
+            select(ConnectorToolState).where(
+                ConnectorToolState.connector_id == connector.id,
+                ConnectorToolState.tool_name == update.tool_name
+            )
+        )
+        tool_state = tool_state_result.scalar_one_or_none()
+
+        if tool_state:
+            tool_state.is_enabled = update.is_enabled
+        else:
+            tool_state = ConnectorToolState(
+                id=uuid.uuid4(),
+                connector_id=connector.id,
+                tool_name=update.tool_name,
+                is_enabled=update.is_enabled
+            )
+            session.add(tool_state)
+
+        updated_count += 1
+
+    await session.commit()
+
+    return {
+        "success": True,
+        "updated_count": updated_count,
+        "message": f"Updated {updated_count} tools"
+    }
+
+
+@router.post(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/tools/enable-all",
+    response_model=Dict[str, Any]
+)
+async def enable_all_tools(
+    tenant_slug: str,
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Enable all tools for a connector."""
+    from sqlalchemy import select, update
+
+    # Get tenant
+    tenant_result = await session.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(
+            Connector.id == connector_id,
+            Connector.tenant_id == tenant.id
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Update all tool states to enabled
+    result = await session.execute(
+        update(ConnectorToolState)
+        .where(ConnectorToolState.connector_id == connector.id)
+        .values(is_enabled=True)
+    )
+
+    await session.commit()
+
+    return {
+        "success": True,
+        "updated_count": result.rowcount,
+        "message": f"Enabled {result.rowcount} tools"
+    }
+
+
+@router.post(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/tools/disable-all",
+    response_model=Dict[str, Any]
+)
+async def disable_all_tools(
+    tenant_slug: str,
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Disable all tools for a connector."""
+    from sqlalchemy import select, update
+
+    # Get tenant
+    tenant_result = await session.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(
+            Connector.id == connector_id,
+            Connector.tenant_id == tenant.id
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Update all tool states to disabled
+    result = await session.execute(
+        update(ConnectorToolState)
+        .where(ConnectorToolState.connector_id == connector.id)
+        .values(is_enabled=False)
+    )
+
+    await session.commit()
+
+    return {
+        "success": True,
+        "updated_count": result.rowcount,
+        "message": f"Disabled {result.rowcount} tools"
+    }
+
+
+@router.post(
+    "/tenants/{tenant_slug}/connectors/{connector_id}/tools/sync",
+    response_model=Dict[str, Any]
+)
+async def sync_connector_tools(
+    tenant_slug: str,
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Sync tools for a connector - detect new tools from code and remove orphaned tools.
+
+    This endpoint:
+    1. Fetches all tools from the connector plugin (source of truth)
+    2. Compares with existing tool states in database
+    3. Adds new tools (enabled by default)
+    4. Removes orphaned tools (tools deleted from code)
+    5. Returns a summary of changes
+    """
+    from sqlalchemy import select, delete
+
+    # Get tenant
+    tenant_result = await session.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(
+            Connector.id == connector_id,
+            Connector.tenant_id == tenant.id
+        )
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Get connector plugin
+    connector_plugin = connector_registry.get_connector(connector.connector_type)
+    if not connector_plugin:
+        raise HTTPException(status_code=404, detail="Connector plugin not found")
+
+    # Get all tools from connector plugin (source of truth)
+    try:
+        all_tools = await connector_plugin.get_tools(connector, oauth_cred=None)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching tools: {str(e)}")
+
+    code_tool_names = {tool.name for tool in all_tools}
+
+    # Get existing tool states from database
+    db_tools_result = await session.execute(
+        select(ConnectorToolState).where(ConnectorToolState.connector_id == connector.id)
+    )
+    db_tools = {tool.tool_name: tool for tool in db_tools_result.scalars().all()}
+    db_tool_names = set(db_tools.keys())
+
+    # Find new tools (in code but not in DB)
+    new_tool_names = code_tool_names - db_tool_names
+
+    # Find orphaned tools (in DB but not in code)
+    orphaned_tool_names = db_tool_names - code_tool_names
+
+    # Add new tools to database (enabled by default)
+    added_tools = []
+    for tool_name in new_tool_names:
+        tool_state = ConnectorToolState(
+            id=uuid.uuid4(),
+            connector_id=connector.id,
+            tool_name=tool_name,
+            is_enabled=True
+        )
+        session.add(tool_state)
+        added_tools.append(tool_name)
+
+    # Remove orphaned tools from database
+    removed_tools = []
+    if orphaned_tool_names:
+        for tool_name in orphaned_tool_names:
+            await session.execute(
+                delete(ConnectorToolState).where(
+                    ConnectorToolState.connector_id == connector.id,
+                    ConnectorToolState.tool_name == tool_name
+                )
+            )
+            removed_tools.append(tool_name)
+
+    await session.commit()
+
+    # Calculate unchanged count
+    unchanged_count = len(code_tool_names & db_tool_names)
+
+    return {
+        "success": True,
+        "added": added_tools,
+        "removed": removed_tools,
+        "unchanged": unchanged_count,
+        "summary": f"Added {len(added_tools)} tools, removed {len(removed_tools)} tools, {unchanged_count} unchanged"
+    }

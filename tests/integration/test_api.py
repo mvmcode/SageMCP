@@ -180,13 +180,12 @@ class TestOAuthAPI:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) >= 3
+        assert len(data) >= 2
 
         # Get provider IDs
         provider_ids = [p["id"] for p in data]
         assert "github" in provider_ids
-        assert "gitlab" in provider_ids
-        assert "google" in provider_ids
+        assert "slack" in provider_ids
 
         # Check GitHub provider structure
         github = next(p for p in data if p["id"] == "github")
@@ -216,3 +215,116 @@ class TestOAuthAPI:
         if response.status_code in [307, 302, 303]:
             assert "location" in response.headers
             assert "github.com" in response.headers["location"]
+
+    def test_create_oauth_config(self, client: TestClient):
+        """Test creating OAuth configuration for a tenant."""
+        # Create a tenant first
+        tenant_data = {
+            "slug": "oauth-config-tenant",
+            "name": "OAuth Config Tenant",
+            "description": "A tenant for OAuth config testing",
+            "contact_email": "oauthconfig@example.com"
+        }
+        tenant_response = client.post("/api/v1/admin/tenants", json=tenant_data)
+        assert tenant_response.status_code == 201
+
+        # Create OAuth config
+        oauth_config = {
+            "provider": "slack",
+            "client_id": "test-client-id",
+            "client_secret": "test-client-secret"
+        }
+        response = client.post(
+            "/api/v1/oauth/oauth-config-tenant/config",
+            json=oauth_config
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider"] == "slack"
+        assert data["client_id"] == "test-client-id"
+        assert data["is_active"] is True
+
+    def test_list_oauth_configs(self, client: TestClient):
+        """Test listing OAuth configurations for a tenant."""
+        # Create a tenant first
+        tenant_data = {
+            "slug": "oauth-list-config-tenant",
+            "name": "OAuth List Config Tenant",
+            "description": "A tenant for OAuth config listing",
+            "contact_email": "oauthlistconfig@example.com"
+        }
+        tenant_response = client.post("/api/v1/admin/tenants", json=tenant_data)
+        assert tenant_response.status_code == 201
+
+        # Create OAuth config
+        oauth_config = {
+            "provider": "github",
+            "client_id": "test-github-client-id",
+            "client_secret": "test-github-client-secret"
+        }
+        client.post(
+            "/api/v1/oauth/oauth-list-config-tenant/config",
+            json=oauth_config
+        )
+
+        # List OAuth configs
+        response = client.get("/api/v1/oauth/oauth-list-config-tenant/config")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert data[0]["provider"] == "github"
+
+    def test_delete_oauth_config(self, client: TestClient):
+        """Test deleting OAuth configuration."""
+        # Create a tenant first
+        tenant_data = {
+            "slug": "oauth-delete-config-tenant",
+            "name": "OAuth Delete Config Tenant",
+            "description": "A tenant for OAuth config deletion",
+            "contact_email": "oauthdeleteconfig@example.com"
+        }
+        tenant_response = client.post("/api/v1/admin/tenants", json=tenant_data)
+        assert tenant_response.status_code == 201
+
+        # Create OAuth config
+        oauth_config = {
+            "provider": "slack",
+            "client_id": "test-delete-client-id",
+            "client_secret": "test-delete-client-secret"
+        }
+        client.post(
+            "/api/v1/oauth/oauth-delete-config-tenant/config",
+            json=oauth_config
+        )
+
+        # Delete OAuth config
+        response = client.delete(
+            "/api/v1/oauth/oauth-delete-config-tenant/config/slack"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "deleted successfully" in data["message"]
+
+    def test_list_oauth_credentials(self, client: TestClient):
+        """Test listing OAuth credentials for a tenant."""
+        # Create a tenant first
+        tenant_data = {
+            "slug": "oauth-creds-tenant",
+            "name": "OAuth Creds Tenant",
+            "description": "A tenant for OAuth credentials testing",
+            "contact_email": "oauthcreds@example.com"
+        }
+        tenant_response = client.post("/api/v1/admin/tenants", json=tenant_data)
+        assert tenant_response.status_code == 201
+
+        # List OAuth credentials (should be empty initially)
+        response = client.get("/api/v1/oauth/oauth-creds-tenant/auth")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)

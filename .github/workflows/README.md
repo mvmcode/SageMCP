@@ -9,12 +9,10 @@ This directory contains the complete CI/CD pipeline configuration for the SageMC
 **Purpose**: Comprehensive testing and validation
 
 **Jobs:**
-- **Backend Tests**: Run pytest with PostgreSQL service
+- **Backend Tests**: Run pytest with SQLite in-memory database
 - **Frontend Tests**: Run vitest with coverage
-- **Backend Linting**: flake8, black, isort, mypy
+- **Backend Linting**: flake8 code quality checks
 - **Docker Build**: Test container builds
-- **Integration Tests**: Full docker-compose validation
-- **Security Scan**: Trivy vulnerability scanning
 
 ### 2. `pr-checks.yml` - Pull Request Validation
 **Trigger**: Pull Request events
@@ -22,23 +20,12 @@ This directory contains the complete CI/CD pipeline configuration for the SageMC
 
 **Features:**
 - **Path filtering**: Only runs relevant jobs for changed components
-- **Backend checks**: Code formatting, linting, type checking, tests
+- **Backend checks**: Linting, tests with 35% coverage requirement
 - **Frontend checks**: TypeScript, linting, tests, build verification
 - **Docker checks**: Container build validation
-- **Security scanning**: Critical/High vulnerability detection
 - **PR comments**: Automated coverage and status reporting
 
-### 3. `deploy.yml` - Deployment Pipeline
-**Trigger**: Push to `main`, Release tags
-**Purpose**: Build and push container images
-
-**Jobs:**
-- **Multi-platform builds**: linux/amd64, linux/arm64
-- **Container Registry**: GitHub Container Registry (ghcr.io)
-- **Staging deployment**: Automatic on `main` branch
-- **Production deployment**: Manual on release tags
-
-### 4. `release.yml` - Release Management
+### 3. `release.yml` - Release Management
 **Trigger**: Version tags (v*)
 **Purpose**: Automated release creation and artifact publishing
 
@@ -49,17 +36,16 @@ This directory contains the complete CI/CD pipeline configuration for the SageMC
 - **Helm chart updates**: Version synchronization
 - **Deployment notifications**: Ready-to-deploy status
 
-### 5. `security.yml` - Security & Compliance
-**Trigger**: Daily schedule, Push to `main`, Pull Requests
-**Purpose**: Continuous security monitoring
+### 4. `security.yml` - Security & Compliance (Disabled)
+**Status**: Currently disabled (`.disabled` extension)
+**Purpose**: Security monitoring (can be re-enabled when needed)
 
-**Scans:**
-- **Dependency vulnerabilities**: Python (safety) and npm audit
-- **Container security**: Trivy image scanning
-- **Code analysis**: GitHub CodeQL (Python & JavaScript)
-- **Secret detection**: TruffleHog scanning
-- **License compliance**: Automated license checking
-- **Security reports**: Aggregated findings and recommendations
+**Available Scans:**
+- Dependency vulnerabilities
+- Container security
+- Code analysis
+- Secret detection
+- License compliance
 
 ## 🔧 Configuration Files
 
@@ -75,22 +61,16 @@ Automated dependency updates for:
 
 ### Setting Up CI/CD
 
-1. **Repository Secrets** (if needed):
-   ```
-   # For private registries or deployment
-   DOCKER_REGISTRY_TOKEN
-   DEPLOYMENT_TOKEN
-   ```
-
-2. **Branch Protection Rules**:
+1. **Branch Protection Rules**:
    - Require PR reviews
    - Require status checks to pass
    - Require up-to-date branches
    - Include administrators
 
-3. **Environment Configuration**:
-   - **Staging**: Auto-deploy from `main`
-   - **Production**: Manual approval for releases
+2. **Test Environment**:
+   - Tests use SQLite in-memory database
+   - No external services required
+   - All dependencies installed via `pip install -e ".[dev]"`
 
 ### Triggering Workflows
 
@@ -174,9 +154,9 @@ docker-compose up -d
 ## 📚 Best Practices
 
 ### Code Quality
-- All code must pass linting and type checking
-- Minimum 80% test coverage required
-- Security scans must pass (no critical/high vulnerabilities)
+- All code must pass flake8 linting
+- Minimum 35% test coverage required
+- Clean code style (max line length: 100)
 
 ### Releases
 - Use semantic versioning (v1.2.3)

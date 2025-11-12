@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,7 @@ class JSONType(TypeDecorator):
 
 if TYPE_CHECKING:
     from .tenant import Tenant
+    from .connector_tool_state import ConnectorToolState
 
 
 class ConnectorType(enum.Enum):
@@ -48,12 +49,16 @@ class ConnectorType(enum.Enum):
     SLACK = "slack"
     TEAMS = "teams"
     DISCORD = "discord"
+    ZOOM = "zoom"
 
 
 class Connector(Base):
     """Connector configuration for tenants."""
 
     __tablename__ = "connectors"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'connector_type', name='uq_tenant_connector_type'),
+    )
 
     # Foreign key to tenant
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -84,6 +89,11 @@ class Connector(Base):
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="connectors")
+    tool_states: Mapped[list["ConnectorToolState"]] = relationship(
+        "ConnectorToolState",
+        back_populates="connector",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Connector(type='{self.connector_type.value}', tenant_id='{self.tenant_id}')>"
