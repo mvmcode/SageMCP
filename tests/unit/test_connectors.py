@@ -8,6 +8,8 @@ from mcp import types
 from sage_mcp.connectors.github import GitHubConnector
 from sage_mcp.connectors.google_docs import GoogleDocsConnector
 from sage_mcp.connectors.jira import JiraConnector
+from sage_mcp.connectors.notion import NotionConnector
+from sage_mcp.connectors.zoom import ZoomConnector
 from sage_mcp.connectors.registry import ConnectorRegistry
 from sage_mcp.models.connector import ConnectorType
 
@@ -963,3 +965,871 @@ class TestJiraConnector:
 
         url = connector._get_api_base_url("test-cloud-id")
         assert url == "https://api.atlassian.com/ex/jira/test-cloud-id/rest/api/3"
+
+
+class TestNotionConnector:
+    """Test NotionConnector class."""
+
+    def test_notion_connector_properties(self):
+        """Test Notion connector properties."""
+        connector = NotionConnector()
+
+        assert connector.display_name == "Notion"
+        assert "Notion" in connector.description
+        assert connector.requires_oauth is True
+
+    @pytest.mark.asyncio
+    async def test_get_tools(self, sample_connector, sample_oauth_credential):
+        """Test getting Notion tools."""
+        connector = NotionConnector()
+
+        tools = await connector.get_tools(sample_connector, sample_oauth_credential)
+
+        assert len(tools) == 10  # We have 10 Notion tools
+
+        # Check that all tools have the correct naming convention
+        for tool in tools:
+            assert tool.name.startswith("notion_")
+            assert isinstance(tool, types.Tool)
+            assert tool.description is not None
+            assert tool.inputSchema is not None
+
+        # Check for specific tools
+        tool_names = [tool.name for tool in tools]
+        assert "notion_list_databases" in tool_names
+        assert "notion_search" in tool_names
+        assert "notion_get_page" in tool_names
+        assert "notion_get_page_content" in tool_names
+        assert "notion_get_database" in tool_names
+        assert "notion_query_database" in tool_names
+        assert "notion_create_page" in tool_names
+        assert "notion_append_block_children" in tool_names
+        assert "notion_update_page" in tool_names
+        assert "notion_get_block" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_unknown(self, sample_connector, sample_oauth_credential):
+        """Test executing unknown tool."""
+        connector = NotionConnector()
+
+        result = await connector.execute_tool(
+            sample_connector,
+            "unknown_tool",
+            {},
+            sample_oauth_credential
+        )
+
+        assert "Unknown tool" in result
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_invalid_oauth(self, sample_connector):
+        """Test executing tool with invalid OAuth."""
+        connector = NotionConnector()
+
+        result = await connector.execute_tool(
+            sample_connector,
+            "list_databases",
+            {},
+            None
+        )
+
+        assert "Invalid or expired" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_list_databases(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test listing databases."""
+        connector = NotionConnector()
+
+        # Mock the Notion API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "id": "db123",
+                    "object": "database",
+                    "title": [{"plain_text": "Test Database"}],
+                    "created_time": "2024-01-01T00:00:00Z",
+                    "last_edited_time": "2024-01-02T00:00:00Z",
+                    "url": "https://notion.so/db123"
+                }
+            ],
+            "has_more": False
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._list_databases({}, sample_oauth_credential)
+
+        assert "Test Database" in result
+        assert "db123" in result
+        assert "count" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_search(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test searching pages and databases."""
+        connector = NotionConnector()
+
+        # Mock the Notion API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "id": "page123",
+                    "object": "page",
+                    "properties": {
+                        "title": {
+                            "type": "title",
+                            "title": [{"plain_text": "Test Page"}]
+                        }
+                    },
+                    "created_time": "2024-01-01T00:00:00Z",
+                    "last_edited_time": "2024-01-02T00:00:00Z",
+                    "url": "https://notion.so/page123"
+                }
+            ],
+            "has_more": False
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._search(
+            {"query": "test", "page_size": 20},
+            sample_oauth_credential
+        )
+
+        assert "Test Page" in result
+        assert "page123" in result
+        assert "count" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_get_page(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting a page by ID."""
+        connector = NotionConnector()
+
+        # Mock the Notion API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "page123",
+            "created_time": "2024-01-01T00:00:00Z",
+            "last_edited_time": "2024-01-02T00:00:00Z",
+            "archived": False,
+            "url": "https://notion.so/page123",
+            "properties": {}
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._get_page({"page_id": "page123"}, sample_oauth_credential)
+
+        assert "page123" in result
+        assert "archived" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_get_page_content(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting page content."""
+        connector = NotionConnector()
+
+        # Mock the page response
+        page_response = Mock()
+        page_response.json.return_value = {
+            "id": "page123",
+            "properties": {
+                "title": {
+                    "type": "title",
+                    "title": [{"plain_text": "Test Page"}]
+                }
+            }
+        }
+
+        # Mock the blocks response
+        blocks_response = Mock()
+        blocks_response.json.return_value = {
+            "results": [
+                {
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {"type": "text", "plain_text": "Hello, world!"}
+                        ]
+                    }
+                }
+            ]
+        }
+
+        mock_request.side_effect = [page_response, blocks_response]
+
+        result = await connector._get_page_content(
+            {"page_id": "page123", "format": "plain_text"},
+            sample_oauth_credential
+        )
+
+        assert "Test Page" in result
+        assert "Hello, world!" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_create_page(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test creating a page."""
+        connector = NotionConnector()
+
+        # Mock the Notion API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "new_page123",
+            "url": "https://notion.so/new_page123",
+            "created_time": "2024-01-01T00:00:00Z"
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._create_page(
+            {
+                "parent_id": "db123",
+                "title": "New Page",
+                "content": "Initial content"
+            },
+            sample_oauth_credential
+        )
+
+        assert "new_page123" in result
+        assert "url" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_query_database(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test querying a database."""
+        connector = NotionConnector()
+
+        # Mock the Notion API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "id": "page456",
+                    "properties": {
+                        "title": {
+                            "type": "title",
+                            "title": [{"plain_text": "Database Entry"}]
+                        }
+                    },
+                    "created_time": "2024-01-01T00:00:00Z",
+                    "last_edited_time": "2024-01-02T00:00:00Z",
+                    "url": "https://notion.so/page456"
+                }
+            ],
+            "has_more": False
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._query_database(
+            {"database_id": "db123"},
+            sample_oauth_credential
+        )
+
+        assert "Database Entry" in result
+        assert "page456" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.notion.NotionConnector._make_authenticated_request')
+    async def test_append_block_children(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test appending block children."""
+        connector = NotionConnector()
+
+        # Mock the Notion API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "results": [{"id": "block123"}]
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._append_block_children(
+            {"page_id": "page123", "content": "New content"},
+            sample_oauth_credential
+        )
+
+        assert "success" in result
+        assert "blocks_added" in result
+
+    @pytest.mark.asyncio
+    async def test_read_resource_page(self, sample_connector, sample_oauth_credential):
+        """Test reading a page resource."""
+        connector = NotionConnector()
+
+        with patch.object(connector, '_make_authenticated_request') as mock_request:
+            page_response = Mock()
+            page_response.json.return_value = {
+                "id": "page123",
+                "properties": {
+                    "title": {
+                        "type": "title",
+                        "title": [{"plain_text": "Test Page"}]
+                    }
+                }
+            }
+
+            blocks_response = Mock()
+            blocks_response.json.return_value = {
+                "results": []
+            }
+
+            mock_request.side_effect = [page_response, blocks_response]
+
+            result = await connector.read_resource(
+                sample_connector,
+                "page/page123",
+                sample_oauth_credential
+            )
+
+            assert "Test Page" in result
+
+    @pytest.mark.asyncio
+    async def test_read_resource_database(self, sample_connector, sample_oauth_credential):
+        """Test reading a database resource."""
+        connector = NotionConnector()
+
+        with patch.object(connector, '_make_authenticated_request') as mock_request:
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "id": "db123",
+                "title": [{"plain_text": "Test Database"}],
+                "properties": {
+                    "Name": {"type": "title"},
+                    "Status": {"type": "select"}
+                }
+            }
+            mock_request.return_value = mock_response
+
+            result = await connector.read_resource(
+                sample_connector,
+                "database/db123",
+                sample_oauth_credential
+            )
+
+            assert "Test Database" in result
+            assert "Properties" in result
+
+    def test_validate_oauth_credential_valid(self, sample_oauth_credential):
+        """Test validating valid OAuth credential."""
+        connector = NotionConnector()
+
+        assert connector.validate_oauth_credential(sample_oauth_credential) is True
+
+    def test_validate_oauth_credential_none(self):
+        """Test validating None OAuth credential."""
+        connector = NotionConnector()
+
+        assert connector.validate_oauth_credential(None) is False
+
+    def test_validate_oauth_credential_inactive(self, sample_oauth_credential):
+        """Test validating inactive OAuth credential."""
+        connector = NotionConnector()
+
+        sample_oauth_credential.is_active = False
+        assert connector.validate_oauth_credential(sample_oauth_credential) is False
+
+    def test_extract_page_title(self):
+        """Test extracting page title from page data."""
+        connector = NotionConnector()
+
+        page_data = {
+            "properties": {
+                "Title": {
+                    "type": "title",
+                    "title": [{"plain_text": "My Page Title"}]
+                }
+            }
+        }
+
+        title = connector._extract_page_title(page_data)
+        assert title == "My Page Title"
+
+    def test_extract_plain_text_from_blocks(self):
+        """Test extracting plain text from Notion blocks."""
+        connector = NotionConnector()
+
+        blocks = [
+            {
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {"type": "text", "plain_text": "First paragraph"}
+                    ]
+                }
+            },
+            {
+                "type": "heading_1",
+                "heading_1": {
+                    "rich_text": [
+                        {"type": "text", "plain_text": "Heading"}
+                    ]
+                }
+            },
+            {
+                "type": "code",
+                "code": {
+                    "rich_text": [
+                        {"type": "text", "plain_text": "console.log('test')"}
+                    ]
+                }
+            }
+        ]
+
+        text = connector._extract_plain_text_from_blocks(blocks)
+        assert "First paragraph" in text
+        assert "Heading" in text
+        assert "console.log('test')" in text
+
+
+class TestZoomConnector:
+    """Test ZoomConnector class."""
+
+    def test_zoom_connector_properties(self):
+        """Test Zoom connector properties."""
+        connector = ZoomConnector()
+
+        assert connector.display_name == "Zoom"
+        assert "Zoom" in connector.description
+        assert connector.requires_oauth is True
+
+    @pytest.mark.asyncio
+    async def test_get_tools(self, sample_connector, sample_oauth_credential):
+        """Test getting Zoom tools."""
+        connector = ZoomConnector()
+
+        tools = await connector.get_tools(sample_connector, sample_oauth_credential)
+
+        assert len(tools) == 12  # We have 12 Zoom tools
+
+        # Check that all tools have the correct naming convention
+        for tool in tools:
+            assert tool.name.startswith("zoom_")
+            assert isinstance(tool, types.Tool)
+            assert tool.description is not None
+            assert tool.inputSchema is not None
+
+        # Check for specific tools
+        tool_names = [tool.name for tool in tools]
+        assert "zoom_list_meetings" in tool_names
+        assert "zoom_get_meeting" in tool_names
+        assert "zoom_create_meeting" in tool_names
+        assert "zoom_update_meeting" in tool_names
+        assert "zoom_delete_meeting" in tool_names
+        assert "zoom_get_user" in tool_names
+        assert "zoom_list_recordings" in tool_names
+        assert "zoom_get_meeting_recordings" in tool_names
+        assert "zoom_list_webinars" in tool_names
+        assert "zoom_get_webinar" in tool_names
+        assert "zoom_list_meeting_participants" in tool_names
+        assert "zoom_get_meeting_invitation" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_unknown(self, sample_connector, sample_oauth_credential):
+        """Test executing unknown tool."""
+        connector = ZoomConnector()
+
+        result = await connector.execute_tool(
+            sample_connector,
+            "unknown_tool",
+            {},
+            sample_oauth_credential
+        )
+
+        assert "Unknown tool" in result
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_invalid_oauth(self, sample_connector):
+        """Test executing tool with invalid OAuth."""
+        connector = ZoomConnector()
+
+        result = await connector.execute_tool(
+            sample_connector,
+            "list_meetings",
+            {},
+            None
+        )
+
+        assert "Invalid or expired" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_list_meetings(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test listing meetings."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "meetings": [
+                {
+                    "id": "12345678",
+                    "topic": "Test Meeting",
+                    "type": 2,
+                    "start_time": "2024-01-15T10:00:00Z",
+                    "duration": 60,
+                    "timezone": "America/New_York",
+                    "join_url": "https://zoom.us/j/12345678",
+                    "agenda": "Discuss project updates"
+                }
+            ],
+            "total_records": 1
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._list_meetings({}, sample_oauth_credential)
+
+        assert "Test Meeting" in result
+        assert "12345678" in result
+        assert "count" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_get_meeting(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting a meeting by ID."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "12345678",
+            "uuid": "abc-123-def-456",
+            "host_id": "host123",
+            "topic": "Test Meeting",
+            "type": 2,
+            "status": "waiting",
+            "start_time": "2024-01-15T10:00:00Z",
+            "duration": 60,
+            "timezone": "America/New_York",
+            "agenda": "Test agenda",
+            "created_at": "2024-01-10T12:00:00Z",
+            "join_url": "https://zoom.us/j/12345678",
+            "password": "abc123",
+            "settings": {}
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._get_meeting({"meeting_id": "12345678"}, sample_oauth_credential)
+
+        assert "12345678" in result
+        assert "Test Meeting" in result
+        assert "join_url" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_create_meeting(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test creating a meeting."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "87654321",
+            "uuid": "new-uuid-123",
+            "host_id": "host123",
+            "topic": "New Test Meeting",
+            "type": 2,
+            "start_time": "2024-01-20T14:00:00Z",
+            "duration": 90,
+            "timezone": "UTC",
+            "join_url": "https://zoom.us/j/87654321",
+            "password": "xyz789",
+            "created_at": "2024-01-15T10:00:00Z"
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._create_meeting(
+            {
+                "topic": "New Test Meeting",
+                "type": 2,
+                "start_time": "2024-01-20T14:00:00Z",
+                "duration": 90
+            },
+            sample_oauth_credential
+        )
+
+        assert "87654321" in result
+        assert "New Test Meeting" in result
+        assert "join_url" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_update_meeting(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test updating a meeting."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response (PATCH returns no content)
+        mock_response = Mock()
+        mock_response.json.return_value = {}
+        mock_request.return_value = mock_response
+
+        result = await connector._update_meeting(
+            {
+                "meeting_id": "12345678",
+                "topic": "Updated Meeting Title"
+            },
+            sample_oauth_credential
+        )
+
+        assert "success" in result
+        assert "12345678" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_delete_meeting(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test deleting a meeting."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_request.return_value = mock_response
+
+        result = await connector._delete_meeting(
+            {"meeting_id": "12345678"},
+            sample_oauth_credential
+        )
+
+        assert "success" in result
+        assert "deleted" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_get_user(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting user information."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "user123",
+            "first_name": "John",
+            "last_name": "Doe",
+            "email": "john.doe@example.com",
+            "type": 2,
+            "pmi": 1234567890,
+            "timezone": "America/New_York",
+            "verified": 1,
+            "created_at": "2020-01-01T00:00:00Z",
+            "last_login_time": "2024-01-15T08:00:00Z",
+            "pic_url": "https://example.com/pic.jpg",
+            "account_id": "account123"
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._get_user({"user_id": "me"}, sample_oauth_credential)
+
+        assert "john.doe@example.com" in result
+        assert "John" in result
+        assert "user123" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_list_recordings(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test listing cloud recordings."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "meetings": [
+                {
+                    "id": "rec123",
+                    "uuid": "rec-uuid-123",
+                    "topic": "Recorded Meeting",
+                    "start_time": "2024-01-10T10:00:00Z",
+                    "duration": 60,
+                    "total_size": 1024000,
+                    "recording_count": 2,
+                    "recording_files": [
+                        {
+                            "id": "file1",
+                            "file_type": "MP4",
+                            "file_size": 512000,
+                            "download_url": "https://zoom.us/rec/download/file1",
+                            "play_url": "https://zoom.us/rec/play/file1"
+                        }
+                    ]
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._list_recordings({}, sample_oauth_credential)
+
+        assert "Recorded Meeting" in result
+        assert "rec123" in result
+        assert "recording_files" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_get_meeting_recordings(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting recordings for a specific meeting."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "uuid": "meeting-uuid",
+            "id": "meeting123",
+            "account_id": "account123",
+            "host_id": "host123",
+            "topic": "Test Meeting",
+            "start_time": "2024-01-10T10:00:00Z",
+            "duration": 60,
+            "total_size": 2048000,
+            "recording_count": 3,
+            "recording_files": [
+                {
+                    "id": "file1",
+                    "meeting_id": "meeting123",
+                    "recording_start": "2024-01-10T10:00:00Z",
+                    "recording_end": "2024-01-10T11:00:00Z",
+                    "file_type": "MP4",
+                    "file_size": 1024000,
+                    "download_url": "https://zoom.us/rec/download/file1",
+                    "play_url": "https://zoom.us/rec/play/file1",
+                    "status": "completed"
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._get_meeting_recordings(
+            {"meeting_id": "meeting123"},
+            sample_oauth_credential
+        )
+
+        assert "meeting123" in result
+        assert "Test Meeting" in result
+        assert "recording_files" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_list_webinars(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test listing webinars."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "webinars": [
+                {
+                    "id": "web123",
+                    "uuid": "web-uuid-123",
+                    "topic": "Test Webinar",
+                    "type": 5,
+                    "start_time": "2024-01-20T15:00:00Z",
+                    "duration": 120,
+                    "timezone": "UTC",
+                    "join_url": "https://zoom.us/w/web123",
+                    "agenda": "Webinar agenda"
+                }
+            ],
+            "total_records": 1
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._list_webinars({}, sample_oauth_credential)
+
+        assert "Test Webinar" in result
+        assert "web123" in result
+        assert "webinars" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_list_meeting_participants(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test listing meeting participants."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "participants": [
+                {
+                    "id": "part1",
+                    "user_id": "user123",
+                    "name": "John Doe",
+                    "user_email": "john@example.com",
+                    "join_time": "2024-01-10T10:00:00Z",
+                    "leave_time": "2024-01-10T11:00:00Z",
+                    "duration": 60,
+                    "status": "in_meeting"
+                }
+            ],
+            "total_records": 1
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._list_meeting_participants(
+            {"meeting_id": "meeting123"},
+            sample_oauth_credential
+        )
+
+        assert "John Doe" in result
+        assert "john@example.com" in result
+        assert "participants" in result
+
+    @pytest.mark.asyncio
+    @patch('sage_mcp.connectors.zoom.ZoomConnector._make_authenticated_request')
+    async def test_get_meeting_invitation(self, mock_request, sample_connector, sample_oauth_credential):
+        """Test getting meeting invitation."""
+        connector = ZoomConnector()
+
+        # Mock the Zoom API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "invitation": "You are invited to join:\nTest Meeting\nTime: Jan 15, 2024 10:00 AM\nJoin URL: https://zoom.us/j/12345678"
+        }
+        mock_request.return_value = mock_response
+
+        result = await connector._get_meeting_invitation(
+            {"meeting_id": "12345678"},
+            sample_oauth_credential
+        )
+
+        assert "invitation" in result
+        assert "Test Meeting" in result
+
+    @pytest.mark.asyncio
+    async def test_read_resource_meeting(self, sample_connector, sample_oauth_credential):
+        """Test reading a meeting resource."""
+        connector = ZoomConnector()
+
+        with patch.object(connector, '_make_authenticated_request') as mock_request:
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "id": "12345678",
+                "topic": "Test Meeting",
+                "start_time": "2024-01-15T10:00:00Z",
+                "duration": 60,
+                "join_url": "https://zoom.us/j/12345678",
+                "agenda": "Test agenda"
+            }
+            mock_request.return_value = mock_response
+
+            result = await connector.read_resource(
+                sample_connector,
+                "meeting/12345678",
+                sample_oauth_credential
+            )
+
+            assert "Test Meeting" in result
+            assert "12345678" in result
+            assert "Join URL" in result
+
+    def test_validate_oauth_credential_valid(self, sample_oauth_credential):
+        """Test validating valid OAuth credential."""
+        connector = ZoomConnector()
+
+        assert connector.validate_oauth_credential(sample_oauth_credential) is True
+
+    def test_validate_oauth_credential_none(self):
+        """Test validating None OAuth credential."""
+        connector = ZoomConnector()
+
+        assert connector.validate_oauth_credential(None) is False
+
+    def test_validate_oauth_credential_inactive(self, sample_oauth_credential):
+        """Test validating inactive OAuth credential."""
+        connector = ZoomConnector()
+
+        sample_oauth_credential.is_active = False
+        assert connector.validate_oauth_credential(sample_oauth_credential) is False

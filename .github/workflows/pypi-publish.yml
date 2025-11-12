@@ -1,0 +1,303 @@
+name: Publish to PyPI
+
+on:
+  # Trigger on CLI-related changes
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/sage_mcp/cli/**'
+      - 'pyproject.toml'
+      - 'src/sage_mcp/__init__.py'
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty for auto)'
+        required: false
+        default: ''
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: 'false'
+
+  # Trigger on version tags
+  release:
+    types: [published]
+
+jobs:
+  # Detect if CLI changes were made
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      cli-changed: ${{ steps.filter.outputs.cli }}
+      version-changed: ${{ steps.filter.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            cli:
+              - 'src/sage_mcp/cli/**'
+            version:
+              - 'src/sage_mcp/__init__.py'
+              - 'pyproject.toml'
+
+  # Run tests before publishing
+  test-cli:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cli-changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[cli,dev]"
+
+      - name: Run CLI tests
+        if: github.event.inputs.skip_tests != 'true'
+        run: |
+          pytest tests/cli/ -v --cov=sage_mcp.cli --cov-report=xml
+
+      - name: Verify CLI installation
+        run: |
+          sagemcp --version
+          sagemcp --help
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: cli
+          name: cli-coverage
+
+  # Build distribution packages
+  build:
+    needs: [detect-changes, test-cli]
+    if: |
+      (needs.detect-changes.outputs.cli-changed == 'true' ||
+       needs.detect-changes.outputs.version-changed == 'true' ||
+       github.event_name == 'workflow_dispatch' ||
+       github.event_name == 'release') &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine hatchling
+
+      - name: Get version
+        id: get-version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(python -c "from src.sage_mcp import __version__; print(__version__)")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
+
+      - name: Build distribution packages
+        run: |
+          python -m build
+
+      - name: Check distribution
+        run: |
+          twine check dist/*
+
+      - name: List distribution files
+        run: |
+          ls -lh dist/
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-packages
+          path: dist/
+          retention-days: 7
+
+  # Publish to Test PyPI (for validation)
+  publish-test:
+    needs: [build, detect-changes]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.detect-changes.outputs.cli-changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/p/sage-mcp
+
+    permissions:
+      id-token: write  # For trusted publishing
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: python-packages
+          path: dist/
+
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+          verbose: true
+
+      - name: Test installation from Test PyPI
+        run: |
+          sleep 60  # Wait for package to be available
+          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ sage-mcp[cli]
+          sagemcp --version
+
+  # Publish to Production PyPI
+  publish-prod:
+    needs: build
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/sage-mcp
+
+    permissions:
+      id-token: write  # For trusted publishing
+      contents: write  # For creating release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: python-packages
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+
+      - name: Get version
+        id: get-version
+        run: |
+          VERSION=$(python -c "from src.sage_mcp import __version__; print(__version__)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release (if not exists)
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get-version.outputs.version }}
+          name: Release v${{ steps.get-version.outputs.version }}
+          body: |
+            ## SageMCP CLI v${{ steps.get-version.outputs.version }}
+
+            ### Installation
+            ```bash
+            pip install sage-mcp[cli]
+            ```
+
+            ### What's New
+            - CLI improvements and bug fixes
+            - See [CHANGELOG.md](CHANGELOG.md) for details
+
+            ### Documentation
+            - [CLI Documentation](src/sage_mcp/cli/README.md)
+            - [Quick Start Guide](src/sage_mcp/cli/QUICKSTART.md)
+            - [Installation Guide](src/sage_mcp/cli/INSTALLATION.md)
+          draft: false
+          prerelease: false
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Successfully published sage-mcp v${{ steps.get-version.outputs.version }} to PyPI"
+          echo "📦 Package URL: https://pypi.org/project/sage-mcp/"
+
+  # Verify published package
+  verify-publish:
+    needs: publish-prod
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Wait for package availability
+        run: sleep 120  # Wait 2 minutes for PyPI to propagate
+
+      - name: Install from PyPI
+        run: |
+          pip install sage-mcp[cli]
+
+      - name: Verify CLI works
+        run: |
+          sagemcp --version
+          sagemcp --help
+          sagemcp config --help
+          sagemcp tenant --help
+
+      - name: Test basic commands
+        run: |
+          # These should work without a server
+          sagemcp --version
+          sagemcp connector types
+
+      - name: Report success
+        run: |
+          echo "✅ Package verification successful on Python ${{ matrix.python-version }}"
+
+  # Notify on failure
+  notify-failure:
+    needs: [test-cli, build, publish-test, publish-prod]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure
+        run: |
+          echo "❌ PyPI publish workflow failed"
+          echo "Check the workflow logs for details"

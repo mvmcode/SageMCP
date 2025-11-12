@@ -19,13 +19,28 @@ _message_queues: Dict[str, asyncio.Queue] = {}
 
 @router.websocket("/{tenant_slug}/connectors/{connector_id}/mcp")
 async def mcp_websocket(websocket: WebSocket, tenant_slug: str, connector_id: str):
-    """WebSocket endpoint for MCP protocol communication."""
-    await websocket.accept()
+    """WebSocket endpoint for MCP protocol communication.
 
-    # Create transport for this specific connector
-    transport = MCPTransport(tenant_slug, connector_id)
+    Supports user-level OAuth tokens via extension message (recommended):
+    Send this message after connection before 'initialize':
+    {
+      "jsonrpc": "2.0",
+      "method": "auth/setUserToken",
+      "params": {"token": "<user_token>"}
+    }
+
+    Legacy support: Query parameter (not recommended for security):
+    ws://host/api/v1/{tenant_slug}/connectors/{connector_id}/mcp?token=<user_token>
+    """
+    # Legacy: Extract user token from query parameter if provided
+    # Note: Query params are deprecated for tokens due to security concerns
+    user_token = websocket.query_params.get('token')
+
+    # Create transport for this specific connector with optional user token
+    transport = MCPTransport(tenant_slug, connector_id, user_token=user_token)
 
     # Handle the WebSocket connection
+    # User can also set/update token via auth/setUserToken extension message
     await transport.handle_websocket(websocket)
 
 
@@ -39,6 +54,12 @@ async def mcp_http_post(tenant_slug: str, connector_id: str, request: Request):
     - For JSON-RPC requests (has id, is request): Returns application/json with response
 
     Client MUST include Accept header with application/json and text/event-stream.
+
+    Supports user-level OAuth tokens via custom header:
+    X-User-OAuth-Token: <user_token>
+
+    Note: User tokens are for external APIs (GitHub, Slack, etc.),
+    separate from MCP protocol-level authentication.
     """
     # Validate Accept header
     accept_header = request.headers.get("accept", "")
@@ -53,6 +74,16 @@ async def mcp_http_post(tenant_slug: str, connector_id: str, request: Request):
         message = await request.json()
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    # Extract user token from custom header if provided
+    # Using custom header to avoid conflict with MCP protocol auth
+    user_token = request.headers.get('x-user-oauth-token')
+
+    # Fallback: also support Authorization header for backward compatibility
+    if not user_token:
+        auth_header = request.headers.get('authorization', '')
+        if auth_header.startswith('Bearer '):
+            user_token = auth_header[7:]
 
     # Determine message type
     message_id = message.get("id")
@@ -69,8 +100,8 @@ async def mcp_http_post(tenant_slug: str, connector_id: str, request: Request):
 
     # Handle requests - process and return JSON response
     if is_request:
-        # Create transport for this specific connector
-        transport = MCPTransport(tenant_slug, connector_id)
+        # Create transport for this specific connector with optional user token
+        transport = MCPTransport(tenant_slug, connector_id, user_token=user_token)
 
         # Process the request
         response = await transport.handle_http_message(message)

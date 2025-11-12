@@ -3,7 +3,7 @@
 import os
 import secrets
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -116,6 +116,49 @@ OAUTH_PROVIDERS = {
             os.getenv("JIRA_CLIENT_SECRET")
             if os.getenv("JIRA_CLIENT_SECRET")
             and os.getenv("JIRA_CLIENT_SECRET") != "your-jira-client-secret"
+            else None
+        ),
+    },
+    "notion": {
+        "name": "Notion",
+        "auth_url": "https://api.notion.com/v1/oauth/authorize",
+        "token_url": "https://api.notion.com/v1/oauth/token",
+        "user_url": "https://api.notion.com/v1/users/me",
+        "scopes": [],  # Notion doesn't use scopes in the same way
+        "client_id": (
+            os.getenv("NOTION_CLIENT_ID")
+            if os.getenv("NOTION_CLIENT_ID")
+            and os.getenv("NOTION_CLIENT_ID") != "your-notion-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("NOTION_CLIENT_SECRET")
+            if os.getenv("NOTION_CLIENT_SECRET")
+            and os.getenv("NOTION_CLIENT_SECRET") != "your-notion-client-secret"
+            else None
+        ),
+    },
+    "zoom": {
+        "name": "Zoom",
+        "auth_url": "https://zoom.us/oauth/authorize",
+        "token_url": "https://zoom.us/oauth/token",
+        "user_url": "https://api.zoom.us/v2/users/me",
+        "scopes": [
+            "meeting:read",
+            "meeting:write",
+            "recording:read",
+            "user:read"
+        ],
+        "client_id": (
+            os.getenv("ZOOM_CLIENT_ID")
+            if os.getenv("ZOOM_CLIENT_ID")
+            and os.getenv("ZOOM_CLIENT_ID") != "your-zoom-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("ZOOM_CLIENT_SECRET")
+            if os.getenv("ZOOM_CLIENT_SECRET")
+            and os.getenv("ZOOM_CLIENT_SECRET") != "your-zoom-client-secret"
             else None
         ),
     }
@@ -265,6 +308,9 @@ async def initiate_oauth(
     # Slack uses different parameter names and format
     if provider == "slack":
         params["user_scope"] = ",".join(provider_config["scopes"])  # Comma-separated for Slack
+    elif provider == "notion":
+        # Notion doesn't use traditional scopes parameter
+        pass
     else:
         params["scope"] = " ".join(provider_config["scopes"])  # Space-separated for others
 
@@ -392,8 +438,8 @@ async def oauth_callback(
         "redirect_uri": redirect_uri,
     }
 
-    # Google and Atlassian OAuth require grant_type parameter
-    if provider in ["google", "google_docs", "jira"]:
+    # Google, Atlassian, Notion, and Zoom OAuth require grant_type parameter
+    if provider in ["google", "google_docs", "jira", "notion", "zoom"]:
         token_data["grant_type"] = "authorization_code"
 
     headers = {"Accept": "application/json"}
@@ -455,6 +501,15 @@ async def oauth_callback(
         # Atlassian OAuth returns 'account_id' and 'email' fields
         provider_user_id = str(user_info.get("account_id", "unknown"))
         provider_username = user_info.get("email", user_info.get("name", "unknown"))
+    elif provider == "notion":
+        # Notion OAuth returns user object with 'id' field
+        user_obj = user_info.get("bot", {}).get("owner", {}).get("user", user_info)
+        provider_user_id = str(user_obj.get("id", "unknown"))
+        provider_username = user_obj.get("name", user_obj.get("person", {}).get("email", "unknown"))
+    elif provider == "zoom":
+        # Zoom OAuth returns 'id' and 'email' fields
+        provider_user_id = str(user_info.get("id", "unknown"))
+        provider_username = user_info.get("email", user_info.get("first_name", "unknown"))
     else:
         provider_user_id = str(user_info.get("id", "unknown"))
         provider_username = user_info.get(
@@ -464,7 +519,7 @@ async def oauth_callback(
     # Calculate expiration time
     expires_at = None
     if "expires_in" in token_info:
-        expires_at = datetime.utcnow() + timedelta(
+        expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=int(token_info["expires_in"])
         )
 
@@ -487,7 +542,7 @@ async def oauth_callback(
         existing.scopes = token_info.get("scope")
         existing.provider_data = str(user_info)
         existing.is_active = True
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(timezone.utc)
     else:
         # Create new credential
         oauth_cred = OAuthCredential(
