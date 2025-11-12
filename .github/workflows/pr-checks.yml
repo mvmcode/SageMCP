@@ -162,7 +162,7 @@ jobs:
         docker compose up -d --build
         sleep 30
         curl -f http://localhost:8000/health
-        curl -f http://localhost:3000
+        curl -f http://localhost:3001
         docker compose down -v
 
   comment-coverage:
