@@ -38,9 +38,15 @@ export interface ConnectorCreate {
 export enum ConnectorType {
   GITHUB = 'github',
   GITLAB = 'gitlab',
+  GOOGLE_DOCS = 'google_docs',
+  NOTION = 'notion',
+  CONFLUENCE = 'confluence',
+  JIRA = 'jira',
+  LINEAR = 'linear',
   SLACK = 'slack',
+  TEAMS = 'teams',
   DISCORD = 'discord',
-  CUSTOM = 'custom'
+  ZOOM = 'zoom'
 }
 
 export interface MCPServerInfo {

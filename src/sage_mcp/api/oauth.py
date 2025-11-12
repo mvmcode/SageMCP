@@ -3,7 +3,7 @@
 import os
 import secrets
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -67,6 +67,98 @@ OAUTH_PROVIDERS = {
             os.getenv("SLACK_CLIENT_SECRET")
             if os.getenv("SLACK_CLIENT_SECRET")
             and os.getenv("SLACK_CLIENT_SECRET") != "your-slack-client-secret"
+            else None
+        ),
+    },
+    "google_docs": {
+        "name": "Google Docs",
+        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token_url": "https://oauth2.googleapis.com/token",
+        "user_url": "https://www.googleapis.com/oauth2/v2/userinfo",
+        "scopes": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ],
+        "client_id": (
+            os.getenv("GOOGLE_CLIENT_ID")
+            if os.getenv("GOOGLE_CLIENT_ID")
+            and os.getenv("GOOGLE_CLIENT_ID") != "your-google-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("GOOGLE_CLIENT_SECRET")
+            if os.getenv("GOOGLE_CLIENT_SECRET")
+            and os.getenv("GOOGLE_CLIENT_SECRET") != "your-google-client-secret"
+            else None
+        ),
+    },
+    "jira": {
+        "name": "Jira",
+        "auth_url": "https://auth.atlassian.com/authorize",
+        "token_url": "https://auth.atlassian.com/oauth/token",
+        "user_url": "https://api.atlassian.com/me",
+        "scopes": [
+            "read:jira-work",
+            "write:jira-work",
+            "read:jira-user",
+            "offline_access"
+        ],
+        "client_id": (
+            os.getenv("JIRA_CLIENT_ID")
+            if os.getenv("JIRA_CLIENT_ID")
+            and os.getenv("JIRA_CLIENT_ID") != "your-jira-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("JIRA_CLIENT_SECRET")
+            if os.getenv("JIRA_CLIENT_SECRET")
+            and os.getenv("JIRA_CLIENT_SECRET") != "your-jira-client-secret"
+            else None
+        ),
+    },
+    "notion": {
+        "name": "Notion",
+        "auth_url": "https://api.notion.com/v1/oauth/authorize",
+        "token_url": "https://api.notion.com/v1/oauth/token",
+        "user_url": "https://api.notion.com/v1/users/me",
+        "scopes": [],  # Notion doesn't use scopes in the same way
+        "client_id": (
+            os.getenv("NOTION_CLIENT_ID")
+            if os.getenv("NOTION_CLIENT_ID")
+            and os.getenv("NOTION_CLIENT_ID") != "your-notion-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("NOTION_CLIENT_SECRET")
+            if os.getenv("NOTION_CLIENT_SECRET")
+            and os.getenv("NOTION_CLIENT_SECRET") != "your-notion-client-secret"
+            else None
+        ),
+    },
+    "zoom": {
+        "name": "Zoom",
+        "auth_url": "https://zoom.us/oauth/authorize",
+        "token_url": "https://zoom.us/oauth/token",
+        "user_url": "https://api.zoom.us/v2/users/me",
+        "scopes": [
+            "meeting:read",
+            "meeting:write",
+            "recording:read",
+            "user:read"
+        ],
+        "client_id": (
+            os.getenv("ZOOM_CLIENT_ID")
+            if os.getenv("ZOOM_CLIENT_ID")
+            and os.getenv("ZOOM_CLIENT_ID") != "your-zoom-client-id"
+            else None
+        ),
+        "client_secret": (
+            os.getenv("ZOOM_CLIENT_SECRET")
+            if os.getenv("ZOOM_CLIENT_SECRET")
+            and os.getenv("ZOOM_CLIENT_SECRET") != "your-zoom-client-secret"
             else None
         ),
     }
@@ -182,13 +274,13 @@ async def initiate_oauth(
     if public_url:
         base_url = public_url.rstrip('/')
     else:
-        # For development, use localhost:3000 directly since we know the
+        # For development, use localhost:3001 directly since we know the
         # frontend port. In production, this would come from environment
         # variables or proper proxy headers
         base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3000' not in base_url_str:
-            # Development mode - frontend is on localhost:3000
-            base_url = "http://localhost:3000"
+        if 'localhost' in base_url_str and ':3001' not in base_url_str:
+            # Development mode - frontend is on localhost:3001
+            base_url = "http://localhost:3001"
         else:
             # Check for forwarded headers (for production)
             forwarded_host = request.headers.get('x-forwarded-host')
@@ -209,10 +301,23 @@ async def initiate_oauth(
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
-        "scope": " ".join(provider_config["scopes"]),
         "state": state,
         "response_type": "code"
     }
+
+    # Slack uses different parameter names and format
+    if provider == "slack":
+        params["user_scope"] = ",".join(provider_config["scopes"])  # Comma-separated for Slack
+    elif provider == "notion":
+        # Notion doesn't use traditional scopes parameter
+        pass
+    else:
+        params["scope"] = " ".join(provider_config["scopes"])  # Space-separated for others
+
+    # Add Google-specific parameters
+    if provider in ["google", "google_docs"]:
+        params["access_type"] = "offline"  # Request refresh token
+        params["prompt"] = "consent"  # Force consent screen to get refresh token
 
     auth_url = (
         f"{provider_config['auth_url']}?{urllib.parse.urlencode(params)}"
@@ -303,13 +408,13 @@ async def oauth_callback(
     if public_url:
         base_url = public_url.rstrip('/')
     else:
-        # For development, use localhost:3000 directly since we know the
+        # For development, use localhost:3001 directly since we know the
         # frontend port. In production, this would come from environment
         # variables or proper proxy headers
         base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3000' not in base_url_str:
-            # Development mode - frontend is on localhost:3000
-            base_url = "http://localhost:3000"
+        if 'localhost' in base_url_str and ':3001' not in base_url_str:
+            # Development mode - frontend is on localhost:3001
+            base_url = "http://localhost:3001"
         else:
             # Check for forwarded headers (for production)
             forwarded_host = request.headers.get('x-forwarded-host')
@@ -333,7 +438,8 @@ async def oauth_callback(
         "redirect_uri": redirect_uri,
     }
 
-    if provider == "google":
+    # Google, Atlassian, Notion, and Zoom OAuth require grant_type parameter
+    if provider in ["google", "google_docs", "jira", "notion", "zoom"]:
         token_data["grant_type"] = "authorization_code"
 
     headers = {"Accept": "application/json"}
@@ -387,6 +493,23 @@ async def oauth_callback(
         # Slack OAuth v2 returns user_id in the auth.test response
         provider_user_id = user_info.get("user_id", user_info.get("user"))
         provider_username = user_info.get("user", provider_user_id)
+    elif provider in ["google", "google_docs"]:
+        # Google OAuth returns 'id' and 'email' fields
+        provider_user_id = str(user_info.get("id", user_info.get("sub", "unknown")))
+        provider_username = user_info.get("email", user_info.get("name", "unknown"))
+    elif provider == "jira":
+        # Atlassian OAuth returns 'account_id' and 'email' fields
+        provider_user_id = str(user_info.get("account_id", "unknown"))
+        provider_username = user_info.get("email", user_info.get("name", "unknown"))
+    elif provider == "notion":
+        # Notion OAuth returns user object with 'id' field
+        user_obj = user_info.get("bot", {}).get("owner", {}).get("user", user_info)
+        provider_user_id = str(user_obj.get("id", "unknown"))
+        provider_username = user_obj.get("name", user_obj.get("person", {}).get("email", "unknown"))
+    elif provider == "zoom":
+        # Zoom OAuth returns 'id' and 'email' fields
+        provider_user_id = str(user_info.get("id", "unknown"))
+        provider_username = user_info.get("email", user_info.get("first_name", "unknown"))
     else:
         provider_user_id = str(user_info.get("id", "unknown"))
         provider_username = user_info.get(
@@ -396,7 +519,7 @@ async def oauth_callback(
     # Calculate expiration time
     expires_at = None
     if "expires_in" in token_info:
-        expires_at = datetime.utcnow() + timedelta(
+        expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=int(token_info["expires_in"])
         )
 
@@ -419,7 +542,7 @@ async def oauth_callback(
         existing.scopes = token_info.get("scope")
         existing.provider_data = str(user_info)
         existing.is_active = True
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(timezone.utc)
     else:
         # Create new credential
         oauth_cred = OAuthCredential(
@@ -447,9 +570,9 @@ async def oauth_callback(
         frontend_url = public_url.rstrip('/')
     else:
         base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3000' not in base_url_str:
-            # Development mode - frontend is on localhost:3000
-            frontend_url = "http://localhost:3000"
+        if 'localhost' in base_url_str and ':3001' not in base_url_str:
+            # Development mode - frontend is on localhost:3001
+            frontend_url = "http://localhost:3001"
         else:
             # Check for forwarded headers (for production)
             forwarded_host = request.headers.get('x-forwarded-host')
@@ -458,8 +581,8 @@ async def oauth_callback(
             if forwarded_host:
                 frontend_url = f"{forwarded_proto}://{forwarded_host}"
             else:
-                # Fallback to request base URL, try to replace 8000 with 3000
-                frontend_url = base_url_str.rstrip('/').replace(':8000', ':3000')
+                # Fallback to request base URL, try to replace 8000 with 3001
+                frontend_url = base_url_str.rstrip('/').replace(':8000', ':3001')
 
     success_url = (
         f"{frontend_url}/oauth/success?provider={provider}&"

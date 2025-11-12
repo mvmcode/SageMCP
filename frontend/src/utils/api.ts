@@ -87,18 +87,70 @@ export const tenantsApi = {
 }
 
 export const connectorsApi = {
-  list: (tenantSlug: string) => 
+  list: (tenantSlug: string) =>
     api.get<Connector[]>(`/admin/tenants/${tenantSlug}/connectors`),
-  get: (tenantSlug: string, connectorId: string) => 
+  get: (tenantSlug: string, connectorId: string) =>
     api.get<Connector>(`/admin/tenants/${tenantSlug}/connectors/${connectorId}`),
-  create: (tenantSlug: string, data: ConnectorCreate) => 
+  create: (tenantSlug: string, data: ConnectorCreate) =>
     api.post<Connector>(`/admin/tenants/${tenantSlug}/connectors`, data),
-  update: (tenantSlug: string, connectorId: string, data: ConnectorCreate) => 
+  update: (tenantSlug: string, connectorId: string, data: ConnectorCreate) =>
     api.put<Connector>(`/admin/tenants/${tenantSlug}/connectors/${connectorId}`, data),
-  delete: (tenantSlug: string, connectorId: string) => 
+  delete: (tenantSlug: string, connectorId: string) =>
     api.delete(`/admin/tenants/${tenantSlug}/connectors/${connectorId}`),
-  toggle: (tenantSlug: string, connectorId: string) => 
+  toggle: (tenantSlug: string, connectorId: string) =>
     api.patch<Connector>(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/toggle`),
+}
+
+export interface ToolState {
+  tool_name: string
+  is_enabled: boolean
+  description?: string
+}
+
+export interface ToolsListResponse {
+  tools: ToolState[]
+  summary: {
+    total: number
+    enabled: number
+    disabled: number
+  }
+}
+
+export interface BulkToolUpdate {
+  tool_name: string
+  is_enabled: boolean
+}
+
+export interface SyncToolsResponse {
+  success: boolean
+  added: string[]
+  removed: string[]
+  unchanged: number
+  summary: string
+}
+
+export const toolsApi = {
+  list: (tenantSlug: string, connectorId: string) =>
+    api.get<ToolsListResponse>(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/tools`),
+
+  toggle: (tenantSlug: string, connectorId: string, toolName: string, isEnabled: boolean) =>
+    api.patch<ToolState>(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/tools/${toolName}`, {
+      is_enabled: isEnabled
+    }),
+
+  bulkUpdate: (tenantSlug: string, connectorId: string, updates: BulkToolUpdate[]) =>
+    api.post(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/tools/bulk-update`, {
+      updates
+    }),
+
+  enableAll: (tenantSlug: string, connectorId: string) =>
+    api.post(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/tools/enable-all`),
+
+  disableAll: (tenantSlug: string, connectorId: string) =>
+    api.post(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/tools/disable-all`),
+
+  sync: (tenantSlug: string, connectorId: string) =>
+    api.post<SyncToolsResponse>(`/admin/tenants/${tenantSlug}/connectors/${connectorId}/tools/sync`),
 }
 
 export const mcpApi = {

@@ -15,13 +15,17 @@ import {
   ToggleRight,
   Copy,
   Info,
-  X
+  X,
+  Wrench,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { tenantsApi, connectorsApi } from '@/utils/api'
 import { cn } from '@/utils/cn'
 import ConnectorModal from '@/components/ConnectorModal'
 import OAuthManager from '@/components/OAuthManager'
+import ToolManagement from '@/components/ToolManagement'
 
 const TabButton = ({ 
   isActive, 
@@ -221,6 +225,7 @@ const ConnectionInfoModal = ({
 const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: string }) => {
   const [showMenu, setShowMenu] = useState(false)
   const [showConnectionInfo, setShowConnectionInfo] = useState(false)
+  const [showTools, setShowTools] = useState(false)
   const queryClient = useQueryClient()
 
 
@@ -272,14 +277,28 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
                 <p className="text-sm text-gray-500 mt-1">{connector.description}</p>
               )}
 
-              {/* Connection Info Button */}
-              <button
-                onClick={() => setShowConnectionInfo(true)}
-                className="mt-3 inline-flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
-              >
-                <Info className="h-4 w-4 mr-1" />
-                Connection Info
-              </button>
+              {/* Action Buttons */}
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={() => setShowConnectionInfo(true)}
+                  className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  <Info className="h-4 w-4 mr-1" />
+                  Connection Info
+                </button>
+                <button
+                  onClick={() => setShowTools(!showTools)}
+                  className="inline-flex items-center text-sm text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  <Wrench className="h-4 w-4 mr-1" />
+                  Manage Tools
+                  {showTools ? (
+                    <ChevronUp className="h-4 w-4 ml-1" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -332,6 +351,17 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
             </div>
           </div>
         </div>
+
+        {/* Expandable Tool Management Section */}
+        {showTools && (
+          <div className="border-t border-gray-200 px-4 py-4 bg-gray-50">
+            <ToolManagement
+              tenantSlug={tenantSlug}
+              connectorId={connector.id}
+              connectorName={connector.name}
+            />
+          </div>
+        )}
       </div>
     </>
   )

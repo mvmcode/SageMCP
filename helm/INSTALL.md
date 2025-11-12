@@ -93,12 +93,12 @@ helm get notes sagemcp -n sagemcp
 
 ```bash
 # Frontend
-kubectl port-forward -n sagemcp svc/sagemcp-frontend 3000:80
+kubectl port-forward -n sagemcp svc/sagemcp-frontend 3001:80
 
 # Backend API
 kubectl port-forward -n sagemcp svc/sagemcp-backend 8000:8000
 
-# Visit http://localhost:3000 for frontend
+# Visit http://localhost:3001 for frontend
 # Visit http://localhost:8000/docs for API docs
 ```
 

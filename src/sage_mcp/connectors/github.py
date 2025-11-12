@@ -112,6 +112,125 @@ class GitHubConnector(BaseConnector):
                 }
             ),
             types.Tool(
+                name="github_get_issue",
+                description="Get details of a specific issue",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "owner": {
+                            "type": "string",
+                            "description": "Repository owner"
+                        },
+                        "repo": {
+                            "type": "string",
+                            "description": "Repository name"
+                        },
+                        "issue_number": {
+                            "type": "integer",
+                            "description": "Issue number"
+                        }
+                    },
+                    "required": ["owner", "repo", "issue_number"]
+                }
+            ),
+            types.Tool(
+                name="github_create_issue",
+                description="Create a new issue in a repository",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "owner": {
+                            "type": "string",
+                            "description": "Repository owner"
+                        },
+                        "repo": {
+                            "type": "string",
+                            "description": "Repository name"
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Issue title"
+                        },
+                        "body": {
+                            "type": "string",
+                            "description": "Issue body/description"
+                        },
+                        "labels": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Array of label names to assign"
+                        },
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Array of usernames to assign"
+                        },
+                        "milestone": {
+                            "type": "integer",
+                            "description": "Milestone number to associate"
+                        }
+                    },
+                    "required": ["owner", "repo", "title"]
+                }
+            ),
+            types.Tool(
+                name="github_update_issue",
+                description="Update an existing issue",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "owner": {
+                            "type": "string",
+                            "description": "Repository owner"
+                        },
+                        "repo": {
+                            "type": "string",
+                            "description": "Repository name"
+                        },
+                        "issue_number": {
+                            "type": "integer",
+                            "description": "Issue number to update"
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "New issue title"
+                        },
+                        "body": {
+                            "type": "string",
+                            "description": "New issue body/description"
+                        },
+                        "state": {
+                            "type": "string",
+                            "enum": ["open", "closed"],
+                            "description": "Issue state"
+                        },
+                        "labels": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Array of label names (replaces existing labels)"
+                        },
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Array of usernames to assign (replaces existing assignees)"
+                        },
+                        "milestone": {
+                            "type": "integer",
+                            "description": "Milestone number to associate (or null to remove)"
+                        }
+                    },
+                    "required": ["owner", "repo", "issue_number"]
+                }
+            ),
+            types.Tool(
                 name="github_get_file_content",
                 description="Get the content of a file from a repository",
                 inputSchema={
@@ -646,6 +765,12 @@ class GitHubConnector(BaseConnector):
                 return await self._get_repository(arguments, oauth_cred)
             elif tool_name == "list_issues":
                 return await self._list_issues(arguments, oauth_cred)
+            elif tool_name == "get_issue":
+                return await self._get_issue(arguments, oauth_cred)
+            elif tool_name == "create_issue":
+                return await self._create_issue(arguments, oauth_cred)
+            elif tool_name == "update_issue":
+                return await self._update_issue(arguments, oauth_cred)
             elif tool_name == "get_file_content":
                 return await self._get_file_content(arguments, oauth_cred)
             elif tool_name == "list_pull_requests":
@@ -832,6 +957,138 @@ class GitHubConnector(BaseConnector):
                     "created_at": issue["created_at"],
                     "html_url": issue["html_url"]
                 })
+
+        return json.dumps(result, indent=2)
+
+    async def _get_issue(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
+        """Get details of a specific issue."""
+        owner = arguments["owner"]
+        repo = arguments["repo"]
+        issue_number = arguments["issue_number"]
+
+        response = await self._make_authenticated_request(
+            "GET",
+            f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}",
+            oauth_cred
+        )
+
+        issue = response.json()
+
+        result = {
+            "number": issue["number"],
+            "title": issue["title"],
+            "body": issue.get("body"),
+            "state": issue["state"],
+            "user": {
+                "login": issue["user"]["login"],
+                "avatar_url": issue["user"]["avatar_url"]
+            },
+            "labels": [{"name": label["name"], "color": label["color"]} for label in issue.get("labels", [])],
+            "assignees": [{"login": assignee["login"]} for assignee in issue.get("assignees", [])],
+            "milestone": issue.get("milestone", {}).get("title") if issue.get("milestone") else None,
+            "comments": issue.get("comments", 0),
+            "created_at": issue["created_at"],
+            "updated_at": issue["updated_at"],
+            "closed_at": issue.get("closed_at"),
+            "html_url": issue["html_url"]
+        }
+
+        return json.dumps(result, indent=2)
+
+    async def _create_issue(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
+        """Create a new issue in a repository."""
+        owner = arguments["owner"]
+        repo = arguments["repo"]
+
+        # Build request body
+        body = {
+            "title": arguments["title"]
+        }
+
+        if "body" in arguments:
+            body["body"] = arguments["body"]
+
+        if "labels" in arguments:
+            body["labels"] = arguments["labels"]
+
+        if "assignees" in arguments:
+            body["assignees"] = arguments["assignees"]
+
+        if "milestone" in arguments:
+            body["milestone"] = arguments["milestone"]
+
+        response = await self._make_authenticated_request(
+            "POST",
+            f"https://api.github.com/repos/{owner}/{repo}/issues",
+            oauth_cred,
+            json=body
+        )
+
+        issue = response.json()
+
+        result = {
+            "number": issue["number"],
+            "title": issue["title"],
+            "body": issue.get("body"),
+            "state": issue["state"],
+            "user": issue["user"]["login"],
+            "labels": [label["name"] for label in issue.get("labels", [])],
+            "assignees": [assignee["login"] for assignee in issue.get("assignees", [])],
+            "created_at": issue["created_at"],
+            "html_url": issue["html_url"],
+            "message": "Issue created successfully"
+        }
+
+        return json.dumps(result, indent=2)
+
+    async def _update_issue(self, arguments: Dict[str, Any], oauth_cred: OAuthCredential) -> str:
+        """Update an existing issue."""
+        owner = arguments["owner"]
+        repo = arguments["repo"]
+        issue_number = arguments["issue_number"]
+
+        # Build request body with only provided fields
+        body = {}
+
+        if "title" in arguments:
+            body["title"] = arguments["title"]
+
+        if "body" in arguments:
+            body["body"] = arguments["body"]
+
+        if "state" in arguments:
+            body["state"] = arguments["state"]
+
+        if "labels" in arguments:
+            body["labels"] = arguments["labels"]
+
+        if "assignees" in arguments:
+            body["assignees"] = arguments["assignees"]
+
+        if "milestone" in arguments:
+            body["milestone"] = arguments["milestone"]
+
+        response = await self._make_authenticated_request(
+            "PATCH",
+            f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}",
+            oauth_cred,
+            json=body
+        )
+
+        issue = response.json()
+
+        result = {
+            "number": issue["number"],
+            "title": issue["title"],
+            "body": issue.get("body"),
+            "state": issue["state"],
+            "user": issue["user"]["login"],
+            "labels": [label["name"] for label in issue.get("labels", [])],
+            "assignees": [assignee["login"] for assignee in issue.get("assignees", [])],
+            "updated_at": issue["updated_at"],
+            "html_url": issue["html_url"],
+            "message": "Issue updated successfully"
+        }
 
         return json.dumps(result, indent=2)
 

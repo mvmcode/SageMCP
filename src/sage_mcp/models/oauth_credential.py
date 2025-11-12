@@ -1,7 +1,7 @@
 """OAuth credential model for storing tenant-specific OAuth tokens."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
@@ -64,4 +64,4 @@ class OAuthCredential(Base):
         """Check if the access token is expired."""
         if not self.expires_at:
             return False
-        return datetime.utcnow() >= self.expires_at
+        return datetime.now(timezone.utc) >= self.expires_at
