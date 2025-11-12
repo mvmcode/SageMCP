@@ -33,6 +33,7 @@ class JSONType(TypeDecorator):
 
 if TYPE_CHECKING:
     from .tenant import Tenant
+    from .connector_tool_state import ConnectorToolState
 
 
 class ConnectorType(enum.Enum):
@@ -48,6 +49,7 @@ class ConnectorType(enum.Enum):
     SLACK = "slack"
     TEAMS = "teams"
     DISCORD = "discord"
+    ZOOM = "zoom"
 
 
 class Connector(Base):
@@ -87,6 +89,11 @@ class Connector(Base):
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="connectors")
+    tool_states: Mapped[list["ConnectorToolState"]] = relationship(
+        "ConnectorToolState",
+        back_populates="connector",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Connector(type='{self.connector_type.value}', tenant_id='{self.tenant_id}')>"

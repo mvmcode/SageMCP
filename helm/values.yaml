@@ -201,6 +201,11 @@ postgresql:
         cpu: 500m
         memory: 512Mi
 
+# Database provider configuration
+database:
+  # Options: postgresql, supabase
+  provider: postgresql
+
 # External PostgreSQL (when postgresql.enabled is false)
 externalDatabase:
   host: ""
@@ -209,6 +214,12 @@ externalDatabase:
   password: ""
   database: sage_mcp
   sslMode: require
+
+# Supabase configuration (when database.provider is supabase)
+supabase:
+  url: ""
+  anonKey: ""
+  serviceRoleKey: ""
 
 # Redis configuration (using Bitnami chart)
 redis:
