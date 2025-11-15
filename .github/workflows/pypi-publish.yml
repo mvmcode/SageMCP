@@ -85,7 +85,7 @@ jobs:
 
       - name: Verify CLI installation
         run: |
-          sagemcp --version
+          sagemcp version
           sagemcp --help
 
       - name: Upload coverage
@@ -183,7 +183,7 @@ jobs:
         run: |
           sleep 60  # Wait for package to be available
           pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ sage-mcp[cli]
-          sagemcp --version
+          sagemcp version
 
   # Publish to Production PyPI
   publish-prod:
@@ -276,7 +276,7 @@ jobs:
 
       - name: Verify CLI works
         run: |
-          sagemcp --version
+          sagemcp version
           sagemcp --help
           sagemcp config --help
           sagemcp tenant --help
@@ -284,7 +284,7 @@ jobs:
       - name: Test basic commands
         run: |
           # These should work without a server
-          sagemcp --version
+          sagemcp version
           sagemcp connector types
 
       - name: Report success
