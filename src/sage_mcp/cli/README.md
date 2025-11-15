@@ -96,6 +96,38 @@ If authorization fails:
 - Verify OAuth credentials are configured in your `.env` file or tenant config
 - Use `sagemcp oauth status <tenant> <provider>` to check credential status
 
+**Configuring OAuth Apps:**
+
+SageMCP supports two ways to configure OAuth credentials:
+
+**Option 1: Global Environment Variables (Simple)**
+```bash
+# In your .env file:
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+
+# Restart backend:
+docker-compose restart app
+```
+✅ Use this when: All tenants use the same OAuth app
+
+**Option 2: Tenant-Specific Configuration (Advanced)**
+```bash
+# Set OAuth config per tenant via CLI:
+sagemcp oauth config-set my-tenant github \
+  --client-id Iv1.abc123def456 \
+  --client-secret 1234567890abcdef
+
+# List configurations:
+sagemcp oauth config-list my-tenant
+
+# Delete configuration:
+sagemcp oauth config-delete my-tenant github
+```
+✅ Use this when: Each tenant needs its own OAuth app (multi-tenant SaaS)
+
+**Priority**: Tenant-specific config → Global environment variables
+
 ### 5. Test MCP Tools
 
 ```bash
@@ -159,6 +191,11 @@ sagemcp oauth list TENANT                   # List credentials
 sagemcp oauth status TENANT [PROVIDER]      # Check OAuth authorization status
 sagemcp oauth authorize TENANT PROVIDER     # Start OAuth flow (with local callback)
 sagemcp oauth revoke TENANT PROVIDER        # Revoke credentials
+
+# OAuth Configuration (tenant-specific OAuth apps)
+sagemcp oauth config-set TENANT PROVIDER --client-id ID --client-secret SECRET
+sagemcp oauth config-list TENANT            # List OAuth configs
+sagemcp oauth config-delete TENANT PROVIDER # Delete OAuth config
 ```
 
 ### MCP Testing (`mcp`)

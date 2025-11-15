@@ -275,6 +275,71 @@ class SageMCPClient:
             )
             return self._handle_response(response)
 
+    def list_oauth_configs(self, tenant_slug: str) -> List[Dict[str, Any]]:
+        """List OAuth configurations for a tenant.
+
+        Args:
+            tenant_slug: Tenant slug
+
+        Returns:
+            List of OAuth configurations
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.get(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/config",
+                headers=self._get_headers(),
+            )
+            return self._handle_response(response)
+
+    def create_oauth_config(
+        self,
+        tenant_slug: str,
+        provider: str,
+        client_id: str,
+        client_secret: str
+    ) -> Dict[str, Any]:
+        """Create or update OAuth configuration for a tenant.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider (github, slack, etc.)
+            client_id: OAuth client ID
+            client_secret: OAuth client secret
+
+        Returns:
+            Created/updated OAuth configuration
+        """
+        data = {
+            "provider": provider,
+            "client_id": client_id,
+            "client_secret": client_secret
+        }
+
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.post(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/config",
+                json=data,
+                headers=self._get_headers(),
+            )
+            return self._handle_response(response)
+
+    def delete_oauth_config(self, tenant_slug: str, provider: str) -> Dict[str, Any]:
+        """Delete OAuth configuration for a tenant.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider
+
+        Returns:
+            Deletion confirmation
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.delete(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/config/{provider}",
+                headers=self._get_headers(),
+            )
+            return self._handle_response(response)
+
     def get_oauth_auth_url(
         self,
         tenant_slug: str,

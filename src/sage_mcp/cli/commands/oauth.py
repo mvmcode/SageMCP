@@ -271,3 +271,136 @@ def revoke_credentials(
     except Exception as e:
         print_error(f"Unexpected error: {e}")
         sys.exit(1)
+
+
+@app.command("config-set")
+def config_set(
+    tenant_slug: str = typer.Argument(..., help="Tenant slug"),
+    provider: str = typer.Argument(..., help="OAuth provider (github, slack, etc.)"),
+    client_id: str = typer.Option(..., help="OAuth client ID"),
+    client_secret: str = typer.Option(..., help="OAuth client secret"),
+    profile: Optional[str] = typer.Option(None, help="Profile to use"),
+    format: str = typer.Option("table", help="Output format (table, json, yaml)"),
+) -> None:
+    """Set OAuth configuration for a tenant.
+
+    This allows you to configure tenant-specific OAuth credentials
+    instead of using global environment variables.
+
+    Example:
+        sagemcp oauth config-set my-tenant github \\
+            --client-id Iv1.abc123 \\
+            --client-secret 1234567890abcdef
+    """
+    try:
+        client = get_client(profile)
+
+        print_info(f"Setting OAuth config for {provider}...")
+
+        config = client.create_oauth_config(
+            tenant_slug,
+            provider,
+            client_id,
+            client_secret
+        )
+
+        print_success(f"✓ OAuth configuration set for {provider}")
+        print_info(f"Provider: {config.get('provider')}")
+        print_info(f"Client ID: {config.get('client_id')}")
+        print_info(f"Active: {config.get('is_active', True)}")
+
+        if format != "table":
+            output_data(config, format)
+
+        print_info(f"\nYou can now authorize: sagemcp oauth authorize {tenant_slug} {provider}")
+
+    except APIError as e:
+        print_error(f"Failed to set OAuth config: {e.message}")
+        sys.exit(3 if e.status_code and e.status_code < 500 else 4)
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        sys.exit(1)
+
+
+@app.command("config-list")
+def config_list(
+    tenant_slug: str = typer.Argument(..., help="Tenant slug"),
+    profile: Optional[str] = typer.Option(None, help="Profile to use"),
+    format: str = typer.Option("table", help="Output format (table, json, yaml)"),
+) -> None:
+    """List OAuth configurations for a tenant.
+
+    Shows tenant-specific OAuth app configurations.
+    """
+    try:
+        client = get_client(profile)
+        configs = client.list_oauth_configs(tenant_slug)
+
+        if format == "table":
+            from rich.console import Console
+            from rich.table import Table
+
+            console = Console()
+            table = Table(title=f"OAuth Configurations for '{tenant_slug}'")
+            table.add_column("Provider", style="cyan")
+            table.add_column("Client ID", style="green")
+            table.add_column("Active", style="yellow")
+            table.add_column("Created", style="blue")
+
+            for config in configs:
+                table.add_row(
+                    config.get('provider', 'N/A'),
+                    config.get('client_id', 'N/A'),
+                    "✓" if config.get('is_active', True) else "✗",
+                    config.get('created_at', 'N/A')[:10] if config.get('created_at') else 'N/A'
+                )
+
+            console.print(table)
+        else:
+            output_data(configs, format)
+
+        if not configs:
+            print_info(f"\nNo OAuth configurations found for tenant '{tenant_slug}'")
+            print_info("Using global environment variables instead (if configured)")
+
+    except APIError as e:
+        print_error(f"Failed to list OAuth configs: {e.message}")
+        sys.exit(3 if e.status_code and e.status_code < 500 else 4)
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        sys.exit(1)
+
+
+@app.command("config-delete")
+def config_delete(
+    tenant_slug: str = typer.Argument(..., help="Tenant slug"),
+    provider: str = typer.Argument(..., help="OAuth provider"),
+    force: bool = typer.Option(False, help="Skip confirmation"),
+    profile: Optional[str] = typer.Option(None, help="Profile to use"),
+) -> None:
+    """Delete OAuth configuration for a tenant.
+
+    This removes the tenant-specific OAuth configuration.
+    The system will fall back to global environment variables if configured.
+    """
+    try:
+        if not force:
+            if not confirm(
+                f"Are you sure you want to delete {provider} OAuth config for tenant '{tenant_slug}'?"
+            ):
+                print_error("Cancelled")
+                sys.exit(0)
+
+        client = get_client(profile)
+        result = client.delete_oauth_config(tenant_slug, provider)
+
+        print_success(f"✓ Deleted {provider} OAuth configuration")
+        print_info(result.get("message", ""))
+        print_info("\nSystem will now use global environment variables (if configured)")
+
+    except APIError as e:
+        print_error(f"Failed to delete OAuth config: {e.message}")
+        sys.exit(3 if e.status_code and e.status_code < 500 else 4)
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        sys.exit(1)
