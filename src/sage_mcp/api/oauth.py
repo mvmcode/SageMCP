@@ -592,6 +592,9 @@ async def oauth_callback(
     state_param = params.get("state", "")
     cli_session_id = None
 
+    print(f"DEBUG: Callback received state parameter: '{state_param}'")
+    print(f"DEBUG: Full query params: {params}")
+
     # Try to extract cli_session from state parameter
     # State could be JSON encoded or contain cli_session directly
     if state_param:
@@ -603,19 +606,27 @@ async def oauth_callback(
                 decoded = base64.urlsafe_b64decode(state_param + "==").decode()
                 state_data = json.loads(decoded)
                 cli_session_id = state_data.get("cli_session")
-            except Exception:
+                print(f"DEBUG: Extracted cli_session from JSON: {cli_session_id}")
+            except Exception as e:
                 # Not base64/JSON, check if state itself contains cli-session prefix
+                print(f"DEBUG: Not base64/JSON (error: {e}), checking for cli-session prefix")
                 if state_param.startswith("cli-session-"):
                     cli_session_id = state_param
-        except Exception:
+                    print(f"DEBUG: Found CLI session ID: {cli_session_id}")
+                else:
+                    print(f"DEBUG: State does not start with 'cli-session-': '{state_param[:50]}'")
+        except Exception as e:
+            print(f"DEBUG: Outer exception: {e}")
             pass
 
     # If this is a CLI session, store the result for polling
     if cli_session_id:
         from sage_mcp.utils.cli_session_storage import cli_session_storage
 
+        print(f"DEBUG: Storing CLI session result for session ID: {cli_session_id}")
+
         # Store successful OAuth result
-        cli_session_storage.store(cli_session_id, {
+        session_data = {
             "status": "success",
             "provider": provider,
             "provider_user_id": provider_user_id,
@@ -624,7 +635,9 @@ async def oauth_callback(
             "scopes": token_info.get("scope"),
             "is_active": True,
             "tenant_slug": tenant_slug
-        })
+        }
+        cli_session_storage.store(cli_session_id, session_data)
+        print(f"DEBUG: Successfully stored session data: {session_data}")
 
         # For CLI sessions, return simple success page instead of redirecting to frontend
         html = f"""
@@ -650,6 +663,8 @@ async def oauth_callback(
         """
         from fastapi.responses import HTMLResponse
         return HTMLResponse(content=html)
+    else:
+        print(f"DEBUG: Not a CLI session (cli_session_id is None)")
 
     # Standard web flow: Redirect to frontend with success message
     # Use same logic as redirect URI generation for consistency
@@ -900,12 +915,20 @@ async def get_cli_session_result(session_id: str):
     """
     from sage_mcp.utils.cli_session_storage import cli_session_storage
 
+    print(f"DEBUG: Polling for CLI session ID: {session_id}")
+
+    # Get storage stats for debugging
+    stats = cli_session_storage.get_stats()
+    print(f"DEBUG: Session storage stats: {stats}")
+
     result = cli_session_storage.get(session_id, delete_after_read=True)
 
     if not result:
+        print(f"DEBUG: Session not found or expired: {session_id}")
         raise HTTPException(
             status_code=404,
             detail="Session not found or expired. It may have already been retrieved or timed out after 5 minutes."
         )
 
+    print(f"DEBUG: Found session result: {result}")
     return result

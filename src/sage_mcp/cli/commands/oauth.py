@@ -156,7 +156,7 @@ def authorize(
                 if e.status_code == 404:
                     if attempt % 6 == 0:  # Print progress every 30 seconds
                         dots = "." * (attempt // 6 % 4)
-                        print_info(f"Still waiting{dots}", end="\r")
+                        print(f"Still waiting{dots}    ", end="\r", flush=True)
                     time.sleep(poll_interval)
                     continue
                 else:
