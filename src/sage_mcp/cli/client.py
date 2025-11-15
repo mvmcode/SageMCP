@@ -238,6 +238,16 @@ class SageMCPClient:
             )
             return self._handle_response(response)
 
+    def get_available_connector_types(self) -> List[str]:
+        """Get list of available connector types.
+
+        Returns:
+            List of valid connector type strings
+        """
+        # Get from OAuth providers since they map 1:1 to connector types
+        providers = self.list_oauth_providers()
+        return [p["id"] for p in providers]
+
     # OAuth operations
     def list_oauth_providers(self) -> List[Dict[str, Any]]:
         """List available OAuth providers."""
@@ -265,9 +275,207 @@ class SageMCPClient:
             )
             return self._handle_response(response)
 
-    def get_oauth_auth_url(self, tenant_slug: str, provider: str) -> str:
-        """Get OAuth authorization URL."""
-        return f"{self.base_url}/api/v1/oauth/{tenant_slug}/auth/{provider}"
+    def list_oauth_configs(self, tenant_slug: str) -> List[Dict[str, Any]]:
+        """List OAuth configurations for a tenant.
+
+        Args:
+            tenant_slug: Tenant slug
+
+        Returns:
+            List of OAuth configurations
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.get(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/config",
+                headers=self._get_headers(),
+            )
+            return self._handle_response(response)
+
+    def create_oauth_config(
+        self,
+        tenant_slug: str,
+        provider: str,
+        client_id: str,
+        client_secret: str
+    ) -> Dict[str, Any]:
+        """Create or update OAuth configuration for a tenant.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider (github, slack, etc.)
+            client_id: OAuth client ID
+            client_secret: OAuth client secret
+
+        Returns:
+            Created/updated OAuth configuration
+        """
+        data = {
+            "provider": provider,
+            "client_id": client_id,
+            "client_secret": client_secret
+        }
+
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.post(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/config",
+                json=data,
+                headers=self._get_headers(),
+            )
+            return self._handle_response(response)
+
+    def delete_oauth_config(self, tenant_slug: str, provider: str) -> Dict[str, Any]:
+        """Delete OAuth configuration for a tenant.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider
+
+        Returns:
+            Deletion confirmation
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.delete(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/config/{provider}",
+                headers=self._get_headers(),
+            )
+            return self._handle_response(response)
+
+    def get_oauth_auth_url(
+        self,
+        tenant_slug: str,
+        provider: str,
+        redirect_uri: Optional[str] = None,
+        state: Optional[str] = None
+    ) -> str:
+        """Get OAuth authorization URL.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider
+            redirect_uri: Optional custom redirect URI for CLI flows
+            state: Optional state parameter for CSRF protection
+
+        Returns:
+            Authorization URL
+        """
+        url = f"{self.base_url}/api/v1/oauth/{tenant_slug}/auth/{provider}"
+
+        # Add query parameters if provided
+        params = []
+        if redirect_uri:
+            params.append(f"custom_redirect_uri={redirect_uri}")
+        if state:
+            params.append(f"custom_state={state}")
+
+        if params:
+            url += "?" + "&".join(params)
+
+        return url
+
+    def exchange_oauth_code(
+        self,
+        tenant_slug: str,
+        provider: str,
+        code: str,
+        redirect_uri: str
+    ) -> Dict[str, Any]:
+        """Exchange OAuth authorization code for access token.
+
+        This method directly calls the OAuth callback endpoint to complete
+        the token exchange process.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider
+            code: Authorization code from OAuth callback
+            redirect_uri: Redirect URI used in the initial request
+
+        Returns:
+            OAuth credential data
+
+        Raises:
+            APIError: On API errors
+        """
+        # Call the callback endpoint with the code
+        url = f"{self.base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
+
+        # Build query parameters as they would come from OAuth provider
+        params = {
+            "code": code,
+            "state": "cli-flow"  # We'll validate this on the server side if needed
+        }
+
+        with httpx.Client(timeout=self.timeout, follow_redirects=False) as client:
+            response = client.get(
+                url,
+                params=params,
+                headers=self._get_headers()
+            )
+
+            # The callback endpoint returns a redirect, but we want to check
+            # that it succeeded (status 302 or 200)
+            if response.status_code in [200, 302, 303, 307, 308]:
+                # OAuth flow completed successfully
+                # Now fetch the credential to return to user
+                return self.get_oauth_credential(tenant_slug, provider)
+            else:
+                try:
+                    error_data = response.json()
+                    message = error_data.get("detail", str(response.text))
+                except Exception:
+                    message = f"OAuth exchange failed: {response.text}"
+                raise APIError(message, response.status_code)
+
+    def get_oauth_credential(self, tenant_slug: str, provider: str) -> Dict[str, Any]:
+        """Get OAuth credential for a specific provider.
+
+        Args:
+            tenant_slug: Tenant slug
+            provider: OAuth provider
+
+        Returns:
+            OAuth credential data
+
+        Raises:
+            APIError: On API errors
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            # List all credentials and filter by provider
+            response = client.get(
+                f"{self.base_url}/api/v1/oauth/{tenant_slug}/auth",
+                headers=self._get_headers()
+            )
+
+            if response.status_code == 200:
+                credentials = response.json()
+                # Find credential for this provider
+                for cred in credentials:
+                    if cred.get("provider") == provider:
+                        return cred
+                raise APIError(f"No OAuth credential found for provider: {provider}", 404)
+            else:
+                return self._handle_response(response)
+
+    def get_cli_session_result(self, session_id: str) -> Dict[str, Any]:
+        """Get CLI OAuth session result.
+
+        This polls the backend for OAuth results stored by the callback handler.
+
+        Args:
+            session_id: CLI session identifier
+
+        Returns:
+            OAuth result data
+
+        Raises:
+            APIError: On API errors (404 if session not found/ready)
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.get(
+                f"{self.base_url}/api/v1/oauth/cli-sessions/{session_id}",
+                headers=self._get_headers()
+            )
+            return self._handle_response(response)
 
     # MCP operations
     def get_mcp_info(self, tenant_slug: str, connector_id: str) -> Dict[str, Any]:

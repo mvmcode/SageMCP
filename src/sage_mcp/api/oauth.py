@@ -218,9 +218,20 @@ async def initiate_oauth(
     tenant_slug: str,
     provider: str,
     request: Request,
+    custom_redirect_uri: Optional[str] = None,
+    custom_state: Optional[str] = None,
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Initiate OAuth flow for a provider."""
+    """Initiate OAuth flow for a provider.
+
+    Args:
+        tenant_slug: Tenant identifier
+        provider: OAuth provider (github, slack, etc.)
+        custom_redirect_uri: Optional custom redirect URI for CLI flows
+        custom_state: Optional custom state parameter for CSRF protection
+        request: FastAPI request object
+        session: Database session
+    """
     if provider not in OAUTH_PROVIDERS:
         raise HTTPException(
             status_code=400,
@@ -265,36 +276,50 @@ async def initiate_oauth(
         )
 
     # Generate state parameter for CSRF protection
-    state = secrets.token_urlsafe(32)
+    # Use custom state if provided (for CLI flows), otherwise generate new one
+    state = custom_state if custom_state else secrets.token_urlsafe(32)
 
     # Build redirect URI
-    # Check if PUBLIC_URL is set in environment (useful for ngrok/tunnels)
-    public_url = os.getenv('PUBLIC_URL')
-
-    if public_url:
-        base_url = public_url.rstrip('/')
+    # Use custom redirect URI if provided (for CLI flows)
+    if custom_redirect_uri:
+        # Validate that custom redirect URI is localhost (security check)
+        if not (custom_redirect_uri.startswith('http://localhost:') or
+                custom_redirect_uri.startswith('http://127.0.0.1:')):
+            raise HTTPException(
+                status_code=400,
+                detail="Custom redirect URI must be localhost"
+            )
+        redirect_uri = custom_redirect_uri
     else:
-        # For development, use localhost:3001 directly since we know the
-        # frontend port. In production, this would come from environment
-        # variables or proper proxy headers
-        base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3001' not in base_url_str:
-            # Development mode - frontend is on localhost:3001
-            base_url = "http://localhost:3001"
+        # Standard web flow redirect URI
+        # Check if PUBLIC_URL is set in environment (useful for ngrok/tunnels)
+        public_url = os.getenv('PUBLIC_URL')
+
+        if public_url:
+            base_url = public_url.rstrip('/')
         else:
-            # Check for forwarded headers (for production)
-            forwarded_host = request.headers.get('x-forwarded-host')
-            forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
-
-            if forwarded_host:
-                base_url = f"{forwarded_proto}://{forwarded_host}"
+            # For development, use localhost:3001 directly since we know the
+            # frontend port. In production, this would come from environment
+            # variables or proper proxy headers
+            base_url_str = str(request.base_url)
+            if 'localhost' in base_url_str and ':3001' not in base_url_str:
+                # Development mode - frontend is on localhost:3001
+                base_url = "http://localhost:3001"
             else:
-                # Fallback to request base URL
-                base_url = str(request.base_url).rstrip('/')
+                # Check for forwarded headers (for production)
+                forwarded_host = request.headers.get('x-forwarded-host')
+                forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
 
-    redirect_uri = (
-        f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
-    )
+                if forwarded_host:
+                    base_url = f"{forwarded_proto}://{forwarded_host}"
+                else:
+                    # Fallback to request base URL
+                    base_url = str(request.base_url).rstrip('/')
+
+        redirect_uri = (
+            f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
+        )
+
     print(f"DEBUG: Final redirect_uri = {redirect_uri}")
 
     # Build authorization URL
@@ -562,7 +587,86 @@ async def oauth_callback(
 
     await session.commit()
 
-    # Redirect to frontend with success message
+    # Check if this is a CLI session by examining the state parameter
+    # CLI sessions include a cli_session parameter in the state
+    state_param = params.get("state", "")
+    cli_session_id = None
+
+    print(f"DEBUG: Callback received state parameter: '{state_param}'")
+    print(f"DEBUG: Full query params: {params}")
+
+    # Try to extract cli_session from state parameter
+    # State could be JSON encoded or contain cli_session directly
+    if state_param:
+        try:
+            # Try parsing as JSON first (for structured state)
+            import json
+            import base64
+            try:
+                decoded = base64.urlsafe_b64decode(state_param + "==").decode()
+                state_data = json.loads(decoded)
+                cli_session_id = state_data.get("cli_session")
+                print(f"DEBUG: Extracted cli_session from JSON: {cli_session_id}")
+            except Exception as e:
+                # Not base64/JSON, check if state itself contains cli-session prefix
+                print(f"DEBUG: Not base64/JSON (error: {e}), checking for cli-session prefix")
+                if state_param.startswith("cli-session-"):
+                    cli_session_id = state_param
+                    print(f"DEBUG: Found CLI session ID: {cli_session_id}")
+                else:
+                    print(f"DEBUG: State does not start with 'cli-session-': '{state_param[:50]}'")
+        except Exception as e:
+            print(f"DEBUG: Outer exception: {e}")
+            pass
+
+    # If this is a CLI session, store the result for polling
+    if cli_session_id:
+        from sage_mcp.utils.cli_session_storage import cli_session_storage
+
+        print(f"DEBUG: Storing CLI session result for session ID: {cli_session_id}")
+
+        # Store successful OAuth result
+        session_data = {
+            "status": "success",
+            "provider": provider,
+            "provider_user_id": provider_user_id,
+            "provider_username": provider_username,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+            "scopes": token_info.get("scope"),
+            "is_active": True,
+            "tenant_slug": tenant_slug
+        }
+        cli_session_storage.store(cli_session_id, session_data)
+        print(f"DEBUG: Successfully stored session data: {session_data}")
+
+        # For CLI sessions, return simple success page instead of redirecting to frontend
+        html = f"""
+        <html>
+            <head><title>OAuth Success</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1 style="color: #4caf50;">✅ Authorization Successful</h1>
+                <p style="font-size: 18px;">
+                    You have successfully authorized <strong>{provider}</strong> for tenant <strong>{tenant_slug}</strong>
+                </p>
+                <p style="color: #666;">
+                    Authorized as: <strong>{provider_username}</strong>
+                </p>
+                <hr style="margin: 30px auto; width: 300px;">
+                <p style="font-size: 16px; color: #333;">
+                    You can close this window and return to your terminal.
+                </p>
+                <p style="color: #999; font-size: 14px;">
+                    The SageMCP CLI has been notified and will continue automatically.
+                </p>
+            </body>
+        </html>
+        """
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html)
+    else:
+        print("DEBUG: Not a CLI session (cli_session_id is None)")
+
+    # Standard web flow: Redirect to frontend with success message
     # Use same logic as redirect URI generation for consistency
     public_url = os.getenv('PUBLIC_URL')
 
@@ -790,3 +894,41 @@ async def delete_oauth_config(
             f"OAuth configuration for {provider} deleted successfully"
         )
     }
+
+
+@router.get("/cli-sessions/{session_id}")
+async def get_cli_session_result(session_id: str):
+    """Get OAuth result for CLI session.
+
+    This endpoint allows CLI clients to poll for OAuth authorization results.
+    The session is created when the OAuth flow is initiated with a cli_session
+    parameter in the state, and the result is stored when the callback completes.
+
+    Args:
+        session_id: CLI session identifier
+
+    Returns:
+        OAuth result data including status, provider info, and credentials
+
+    Raises:
+        HTTPException: If session not found or expired
+    """
+    from sage_mcp.utils.cli_session_storage import cli_session_storage
+
+    print(f"DEBUG: Polling for CLI session ID: {session_id}")
+
+    # Get storage stats for debugging
+    stats = cli_session_storage.get_stats()
+    print(f"DEBUG: Session storage stats: {stats}")
+
+    result = cli_session_storage.get(session_id, delete_after_read=True)
+
+    if not result:
+        print(f"DEBUG: Session not found or expired: {session_id}")
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found or expired. It may have already been retrieved or timed out after 5 minutes."
+        )
+
+    print(f"DEBUG: Found session result: {result}")
+    return result
