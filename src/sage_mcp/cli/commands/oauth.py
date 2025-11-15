@@ -85,26 +85,158 @@ def authorize(
     browser: bool = typer.Option(True, help="Open browser automatically"),
     profile: Optional[str] = typer.Option(None, help="Profile to use"),
 ) -> None:
-    """Start OAuth authorization flow."""
+    """Start OAuth authorization flow.
+
+    This command starts a local callback server, opens your browser to authorize
+    with the OAuth provider, and automatically completes the authentication process.
+    """
     try:
+        from sage_mcp.cli.utils.oauth_server import OAuthCallbackServer
+
         client = get_client(profile)
-        auth_url = client.get_oauth_auth_url(tenant_slug, provider)
 
-        print_info(f"OAuth authorization URL for {provider}:")
-        print(auth_url)
+        # Start local callback server
+        print_info(f"Starting OAuth authorization for {provider}...")
+        print_info("Starting local callback server...")
 
-        if browser:
-            print_info("Opening browser...")
-            webbrowser.open(auth_url)
-        else:
-            print_info("Please open this URL in your browser to authorize")
+        with OAuthCallbackServer() as server:
+            # Get the callback URL
+            callback_url = server.start()
+            print_info(f"Listening on {callback_url}")
 
-        print_info(
-            "After authorization, the credentials will be stored automatically"
-        )
+            # Get state for CSRF protection
+            state = server.get_state()
+
+            # Build auth URL with custom redirect URI
+            auth_url = client.get_oauth_auth_url(
+                tenant_slug,
+                provider,
+                redirect_uri=callback_url,
+                state=state
+            )
+
+            print_info(f"\nAuthorization URL: {auth_url}\n")
+
+            if browser:
+                print_info("Opening browser for authorization...")
+                webbrowser.open(auth_url)
+            else:
+                print_info("Please open this URL in your browser to authorize:")
+                print(auth_url)
+
+            print_info("\nWaiting for authorization (this may take up to 5 minutes)...")
+            print_info("Please complete the authorization in your browser.\n")
+
+            try:
+                # Wait for OAuth callback
+                result = server.wait_for_callback(timeout=300)
+
+                # Check for errors
+                if result["error"]:
+                    print_error(f"OAuth authorization failed: {result['error']}")
+                    if result["error_description"]:
+                        print_error(f"Details: {result['error_description']}")
+                    sys.exit(3)
+
+                # Verify state matches (CSRF protection)
+                if result["state"] != state:
+                    print_error("State parameter mismatch - possible CSRF attack")
+                    sys.exit(3)
+
+                # Exchange code for tokens
+                print_info("Authorization successful! Exchanging code for tokens...")
+
+                credential = client.exchange_oauth_code(
+                    tenant_slug,
+                    provider,
+                    result["code"],
+                    callback_url
+                )
+
+                print_success(f"\n✓ Successfully authorized {provider} for tenant '{tenant_slug}'")
+                print_info(f"Provider User: {credential.get('provider_username', 'N/A')}")
+                print_info(f"Provider User ID: {credential.get('provider_user_id', 'N/A')}")
+
+                if credential.get('expires_at'):
+                    print_info(f"Token expires: {credential['expires_at']}")
+
+                print_info("\nYou can now use this connector with MCP tools.")
+
+            except TimeoutError as e:
+                print_error(str(e))
+                print_info("\nTroubleshooting tips:")
+                print_info("  1. Make sure you completed the authorization in your browser")
+                print_info("  2. Check that your OAuth app configuration is correct")
+                print_info("  3. Verify the redirect URI matches in your OAuth app settings")
+                sys.exit(3)
 
     except APIError as e:
-        print_error(f"Failed to get authorization URL: {e.message}")
+        print_error(f"Failed to authorize: {e.message}")
+        sys.exit(3 if e.status_code and e.status_code < 500 else 4)
+    except KeyboardInterrupt:
+        print_error("\nAuthorization cancelled by user")
+        sys.exit(0)
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@app.command("status")
+def oauth_status(
+    tenant_slug: str = typer.Argument(..., help="Tenant slug"),
+    provider: Optional[str] = typer.Argument(None, help="OAuth provider (optional)"),
+    profile: Optional[str] = typer.Option(None, help="Profile to use"),
+    format: str = typer.Option("table", help="Output format (table, json, yaml)"),
+) -> None:
+    """Check OAuth authorization status for a tenant.
+
+    If provider is specified, shows status for that provider only.
+    Otherwise, shows status for all providers.
+    """
+    try:
+        client = get_client(profile)
+
+        if provider:
+            # Check status for specific provider
+            try:
+                credential = client.get_oauth_credential(tenant_slug, provider)
+                print_success(f"✓ {provider} is authorized for tenant '{tenant_slug}'")
+                print_info(f"Provider User: {credential.get('provider_username', 'N/A')}")
+                print_info(f"Provider User ID: {credential.get('provider_user_id', 'N/A')}")
+                print_info(f"Active: {credential.get('is_active', False)}")
+
+                if credential.get('expires_at'):
+                    print_info(f"Expires: {credential['expires_at']}")
+
+                if format != "table":
+                    output_data(credential, format)
+
+            except APIError as e:
+                if e.status_code == 404:
+                    print_error(f"✗ {provider} is NOT authorized for tenant '{tenant_slug}'")
+                    print_info(f"Run: sagemcp oauth authorize {tenant_slug} {provider}")
+                    sys.exit(1)
+                else:
+                    raise
+
+        else:
+            # Check status for all providers
+            credentials = client.list_oauth_credentials(tenant_slug)
+
+            if format == "table":
+                output_table_oauth_credentials(credentials, tenant_slug)
+            else:
+                output_data(credentials, format)
+
+            if not credentials:
+                print_info(f"\nNo OAuth providers authorized for tenant '{tenant_slug}'")
+                print_info("Run: sagemcp oauth providers  # to see available providers")
+                print_info("Run: sagemcp oauth authorize <tenant> <provider>  # to authorize")
+
+    except APIError as e:
+        print_error(f"Failed to check OAuth status: {e.message}")
         sys.exit(3 if e.status_code and e.status_code < 500 else 4)
     except Exception as e:
         print_error(f"Unexpected error: {e}")

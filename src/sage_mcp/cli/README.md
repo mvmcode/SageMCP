@@ -60,12 +60,41 @@ sagemcp connector types
 # List available OAuth providers
 sagemcp oauth providers
 
-# Start OAuth flow (opens browser)
+# Start OAuth flow (opens browser and handles callback automatically)
 sagemcp oauth authorize my-tenant github
+
+# Check OAuth status for a tenant
+sagemcp oauth status my-tenant
+
+# Check OAuth status for specific provider
+sagemcp oauth status my-tenant github
 
 # List OAuth credentials
 sagemcp oauth list my-tenant
+
+# Revoke OAuth credentials
+sagemcp oauth revoke my-tenant github
 ```
+
+**How OAuth Authorization Works:**
+
+The CLI now includes a built-in OAuth callback server that makes authorization seamless:
+
+1. Run `sagemcp oauth authorize <tenant> <provider>`
+2. A local HTTP server starts automatically (usually on port like http://localhost:xxxxx)
+3. Your browser opens to the OAuth provider's authorization page
+4. After you approve, the OAuth provider redirects to the local server
+5. The CLI automatically captures the authorization code and exchanges it for tokens
+6. OAuth credentials are stored server-side and ready to use
+7. The local server shuts down automatically
+
+**Troubleshooting OAuth:**
+
+If authorization fails:
+- Ensure your OAuth app's redirect URI allows `http://localhost` (with any port)
+- Check that no firewall is blocking the local callback server
+- Verify OAuth credentials are configured in your `.env` file or tenant config
+- Use `sagemcp oauth status <tenant> <provider>` to check credential status
 
 ### 5. Test MCP Tools
 
@@ -127,7 +156,8 @@ sagemcp connector types                     # List available types
 ```bash
 sagemcp oauth providers                     # List OAuth providers
 sagemcp oauth list TENANT                   # List credentials
-sagemcp oauth authorize TENANT PROVIDER     # Start OAuth flow
+sagemcp oauth status TENANT [PROVIDER]      # Check OAuth authorization status
+sagemcp oauth authorize TENANT PROVIDER     # Start OAuth flow (with local callback)
 sagemcp oauth revoke TENANT PROVIDER        # Revoke credentials
 ```
 

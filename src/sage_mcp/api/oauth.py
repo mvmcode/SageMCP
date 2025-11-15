@@ -218,9 +218,20 @@ async def initiate_oauth(
     tenant_slug: str,
     provider: str,
     request: Request,
+    custom_redirect_uri: Optional[str] = None,
+    custom_state: Optional[str] = None,
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Initiate OAuth flow for a provider."""
+    """Initiate OAuth flow for a provider.
+
+    Args:
+        tenant_slug: Tenant identifier
+        provider: OAuth provider (github, slack, etc.)
+        custom_redirect_uri: Optional custom redirect URI for CLI flows
+        custom_state: Optional custom state parameter for CSRF protection
+        request: FastAPI request object
+        session: Database session
+    """
     if provider not in OAUTH_PROVIDERS:
         raise HTTPException(
             status_code=400,
@@ -265,36 +276,50 @@ async def initiate_oauth(
         )
 
     # Generate state parameter for CSRF protection
-    state = secrets.token_urlsafe(32)
+    # Use custom state if provided (for CLI flows), otherwise generate new one
+    state = custom_state if custom_state else secrets.token_urlsafe(32)
 
     # Build redirect URI
-    # Check if PUBLIC_URL is set in environment (useful for ngrok/tunnels)
-    public_url = os.getenv('PUBLIC_URL')
-
-    if public_url:
-        base_url = public_url.rstrip('/')
+    # Use custom redirect URI if provided (for CLI flows)
+    if custom_redirect_uri:
+        # Validate that custom redirect URI is localhost (security check)
+        if not (custom_redirect_uri.startswith('http://localhost:') or
+                custom_redirect_uri.startswith('http://127.0.0.1:')):
+            raise HTTPException(
+                status_code=400,
+                detail="Custom redirect URI must be localhost"
+            )
+        redirect_uri = custom_redirect_uri
     else:
-        # For development, use localhost:3001 directly since we know the
-        # frontend port. In production, this would come from environment
-        # variables or proper proxy headers
-        base_url_str = str(request.base_url)
-        if 'localhost' in base_url_str and ':3001' not in base_url_str:
-            # Development mode - frontend is on localhost:3001
-            base_url = "http://localhost:3001"
+        # Standard web flow redirect URI
+        # Check if PUBLIC_URL is set in environment (useful for ngrok/tunnels)
+        public_url = os.getenv('PUBLIC_URL')
+
+        if public_url:
+            base_url = public_url.rstrip('/')
         else:
-            # Check for forwarded headers (for production)
-            forwarded_host = request.headers.get('x-forwarded-host')
-            forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
-
-            if forwarded_host:
-                base_url = f"{forwarded_proto}://{forwarded_host}"
+            # For development, use localhost:3001 directly since we know the
+            # frontend port. In production, this would come from environment
+            # variables or proper proxy headers
+            base_url_str = str(request.base_url)
+            if 'localhost' in base_url_str and ':3001' not in base_url_str:
+                # Development mode - frontend is on localhost:3001
+                base_url = "http://localhost:3001"
             else:
-                # Fallback to request base URL
-                base_url = str(request.base_url).rstrip('/')
+                # Check for forwarded headers (for production)
+                forwarded_host = request.headers.get('x-forwarded-host')
+                forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
 
-    redirect_uri = (
-        f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
-    )
+                if forwarded_host:
+                    base_url = f"{forwarded_proto}://{forwarded_host}"
+                else:
+                    # Fallback to request base URL
+                    base_url = str(request.base_url).rstrip('/')
+
+        redirect_uri = (
+            f"{base_url}/api/v1/oauth/{tenant_slug}/callback/{provider}"
+        )
+
     print(f"DEBUG: Final redirect_uri = {redirect_uri}")
 
     # Build authorization URL
