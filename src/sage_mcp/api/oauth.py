@@ -587,7 +587,71 @@ async def oauth_callback(
 
     await session.commit()
 
-    # Redirect to frontend with success message
+    # Check if this is a CLI session by examining the state parameter
+    # CLI sessions include a cli_session parameter in the state
+    state_param = params.get("state", "")
+    cli_session_id = None
+
+    # Try to extract cli_session from state parameter
+    # State could be JSON encoded or contain cli_session directly
+    if state_param:
+        try:
+            # Try parsing as JSON first (for structured state)
+            import json
+            import base64
+            try:
+                decoded = base64.urlsafe_b64decode(state_param + "==").decode()
+                state_data = json.loads(decoded)
+                cli_session_id = state_data.get("cli_session")
+            except Exception:
+                # Not base64/JSON, check if state itself contains cli-session prefix
+                if state_param.startswith("cli-session-"):
+                    cli_session_id = state_param
+        except Exception:
+            pass
+
+    # If this is a CLI session, store the result for polling
+    if cli_session_id:
+        from sage_mcp.utils.cli_session_storage import cli_session_storage
+
+        # Store successful OAuth result
+        cli_session_storage.store(cli_session_id, {
+            "status": "success",
+            "provider": provider,
+            "provider_user_id": provider_user_id,
+            "provider_username": provider_username,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+            "scopes": token_info.get("scope"),
+            "is_active": True,
+            "tenant_slug": tenant_slug
+        })
+
+        # For CLI sessions, return simple success page instead of redirecting to frontend
+        html = f"""
+        <html>
+            <head><title>OAuth Success</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1 style="color: #4caf50;">✅ Authorization Successful</h1>
+                <p style="font-size: 18px;">
+                    You have successfully authorized <strong>{provider}</strong> for tenant <strong>{tenant_slug}</strong>
+                </p>
+                <p style="color: #666;">
+                    Authorized as: <strong>{provider_username}</strong>
+                </p>
+                <hr style="margin: 30px auto; width: 300px;">
+                <p style="font-size: 16px; color: #333;">
+                    You can close this window and return to your terminal.
+                </p>
+                <p style="color: #999; font-size: 14px;">
+                    The SageMCP CLI has been notified and will continue automatically.
+                </p>
+            </body>
+        </html>
+        """
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html)
+
+    # Standard web flow: Redirect to frontend with success message
     # Use same logic as redirect URI generation for consistency
     public_url = os.getenv('PUBLIC_URL')
 
@@ -815,3 +879,33 @@ async def delete_oauth_config(
             f"OAuth configuration for {provider} deleted successfully"
         )
     }
+
+
+@router.get("/cli-sessions/{session_id}")
+async def get_cli_session_result(session_id: str):
+    """Get OAuth result for CLI session.
+
+    This endpoint allows CLI clients to poll for OAuth authorization results.
+    The session is created when the OAuth flow is initiated with a cli_session
+    parameter in the state, and the result is stored when the callback completes.
+
+    Args:
+        session_id: CLI session identifier
+
+    Returns:
+        OAuth result data including status, provider info, and credentials
+
+    Raises:
+        HTTPException: If session not found or expired
+    """
+    from sage_mcp.utils.cli_session_storage import cli_session_storage
+
+    result = cli_session_storage.get(session_id, delete_after_read=True)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found or expired. It may have already been retrieved or timed out after 5 minutes."
+        )
+
+    return result

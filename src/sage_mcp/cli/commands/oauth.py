@@ -87,94 +87,96 @@ def authorize(
 ) -> None:
     """Start OAuth authorization flow.
 
-    This command starts a local callback server, opens your browser to authorize
-    with the OAuth provider, and automatically completes the authentication process.
+    This command opens your browser to authorize with the OAuth provider.
+    The backend handles the OAuth callback and the CLI polls for the result.
     """
     try:
-        from sage_mcp.cli.utils.oauth_server import OAuthCallbackServer
+        import uuid
+        import time
 
         client = get_client(profile)
 
-        # Start local callback server
+        # Generate unique CLI session ID
+        session_id = f"cli-session-{uuid.uuid4()}"
+
         print_info(f"Starting OAuth authorization for {provider}...")
-        print_info("Starting local callback server...")
+        print_info(f"Session ID: {session_id}\n")
 
-        with OAuthCallbackServer() as server:
-            # Get the callback URL
-            callback_url = server.start()
-            print_info(f"Listening on {callback_url}")
+        # Build auth URL with CLI session ID in state
+        # The backend will detect this and store the result for polling
+        auth_url = client.get_oauth_auth_url(
+            tenant_slug,
+            provider,
+            redirect_uri=None,  # Use backend's default callback
+            state=session_id     # Session ID as state parameter
+        )
 
-            # Get state for CSRF protection
-            state = server.get_state()
+        print_info(f"Authorization URL: {auth_url}\n")
 
-            # Build auth URL with custom redirect URI
-            auth_url = client.get_oauth_auth_url(
-                tenant_slug,
-                provider,
-                redirect_uri=callback_url,
-                state=state
-            )
+        if browser:
+            print_info("Opening browser for authorization...")
+            webbrowser.open(auth_url)
+        else:
+            print_info("Please open this URL in your browser to authorize:")
+            print(auth_url)
 
-            print_info(f"\nAuthorization URL: {auth_url}\n")
+        print_info("\nWaiting for authorization (timeout: 5 minutes)...")
+        print_info("Please complete the authorization in your browser.\n")
 
-            if browser:
-                print_info("Opening browser for authorization...")
-                webbrowser.open(auth_url)
-            else:
-                print_info("Please open this URL in your browser to authorize:")
-                print(auth_url)
+        # Poll for result
+        max_attempts = 60  # 5 minutes (60 * 5 seconds)
+        poll_interval = 5  # seconds
 
-            print_info("\nWaiting for authorization (this may take up to 5 minutes)...")
-            print_info("Please complete the authorization in your browser.\n")
-
+        for attempt in range(max_attempts):
             try:
-                # Wait for OAuth callback
-                result = server.wait_for_callback(timeout=300)
+                # Try to get the session result
+                result = client.get_cli_session_result(session_id)
 
-                # Check for errors
-                if result["error"]:
-                    print_error(f"OAuth authorization failed: {result['error']}")
-                    if result["error_description"]:
+                # Success!
+                if result.get("status") == "success":
+                    print_success(f"\n✓ Successfully authorized {provider} for tenant '{tenant_slug}'")
+                    print_info(f"Provider User: {result.get('provider_username', 'N/A')}")
+                    print_info(f"Provider User ID: {result.get('provider_user_id', 'N/A')}")
+
+                    if result.get('expires_at'):
+                        print_info(f"Token expires: {result['expires_at']}")
+
+                    print_info("\nYou can now use this connector with MCP tools.")
+                    return
+
+                # Error in OAuth flow
+                elif result.get("status") == "error":
+                    print_error(f"OAuth authorization failed: {result.get('error', 'Unknown error')}")
+                    if result.get('error_description'):
                         print_error(f"Details: {result['error_description']}")
                     sys.exit(3)
 
-                # Verify state matches (CSRF protection)
-                if result["state"] != state:
-                    print_error("State parameter mismatch - possible CSRF attack")
-                    sys.exit(3)
+            except APIError as e:
+                # 404 means session not ready yet, keep polling
+                if e.status_code == 404:
+                    if attempt % 6 == 0:  # Print progress every 30 seconds
+                        dots = "." * (attempt // 6 % 4)
+                        print_info(f"Still waiting{dots}", end="\r")
+                    time.sleep(poll_interval)
+                    continue
+                else:
+                    # Other errors are real problems
+                    raise
 
-                # Exchange code for tokens
-                print_info("Authorization successful! Exchanging code for tokens...")
-
-                credential = client.exchange_oauth_code(
-                    tenant_slug,
-                    provider,
-                    result["code"],
-                    callback_url
-                )
-
-                print_success(f"\n✓ Successfully authorized {provider} for tenant '{tenant_slug}'")
-                print_info(f"Provider User: {credential.get('provider_username', 'N/A')}")
-                print_info(f"Provider User ID: {credential.get('provider_user_id', 'N/A')}")
-
-                if credential.get('expires_at'):
-                    print_info(f"Token expires: {credential['expires_at']}")
-
-                print_info("\nYou can now use this connector with MCP tools.")
-
-            except TimeoutError as e:
-                print_error(str(e))
-                print_info("\nTroubleshooting tips:")
-                print_info("  1. Make sure you completed the authorization in your browser")
-                print_info("  2. Check that your OAuth app configuration is correct")
-                print_info("  3. Verify the redirect URI matches in your OAuth app settings")
-                sys.exit(3)
+        # Timeout
+        print_error("\n\nAuthorization timed out after 5 minutes.")
+        print_info("\nTroubleshooting tips:")
+        print_info("  1. Make sure you completed the authorization in your browser")
+        print_info("  2. Check that your OAuth app configuration is correct")
+        print_info("  3. Verify OAuth credentials are set (env vars or tenant config)")
+        print_info("  4. Check backend logs for errors")
+        sys.exit(3)
 
     except APIError as e:
         print_error(f"Failed to authorize: {e.message}")
         sys.exit(3 if e.status_code and e.status_code < 500 else 4)
     except KeyboardInterrupt:
-        print_error("\nAuthorization cancelled by user")
+        print_error("\n\nAuthorization cancelled by user")
         sys.exit(0)
     except Exception as e:
         print_error(f"Unexpected error: {e}")

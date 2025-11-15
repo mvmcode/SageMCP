@@ -456,6 +456,27 @@ class SageMCPClient:
             else:
                 return self._handle_response(response)
 
+    def get_cli_session_result(self, session_id: str) -> Dict[str, Any]:
+        """Get CLI OAuth session result.
+
+        This polls the backend for OAuth results stored by the callback handler.
+
+        Args:
+            session_id: CLI session identifier
+
+        Returns:
+            OAuth result data
+
+        Raises:
+            APIError: On API errors (404 if session not found/ready)
+        """
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.get(
+                f"{self.base_url}/api/v1/oauth/cli-sessions/{session_id}",
+                headers=self._get_headers()
+            )
+            return self._handle_response(response)
+
     # MCP operations
     def get_mcp_info(self, tenant_slug: str, connector_id: str) -> Dict[str, Any]:
         """Get MCP server info."""
