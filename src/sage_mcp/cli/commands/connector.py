@@ -12,6 +12,7 @@ from sage_mcp.cli.utils.output import (
     output_table_connector,
     output_table_connectors,
     print_error,
+    print_info,
     print_success,
 )
 from sage_mcp.cli.utils.prompts import confirm, prompt_connector_create
@@ -81,28 +82,47 @@ def show_connector(
 @app.command("create")
 def create_connector(
     tenant_slug: str = typer.Argument(..., help="Tenant slug"),
-    connector_type: Optional[str] = typer.Option(None, help="Connector type"),
+    connector_type: Optional[str] = typer.Option(None, "--type", help="Connector type"),
     name: Optional[str] = typer.Option(None, help="Display name"),
     description: Optional[str] = typer.Option(None, help="Description"),
     interactive: bool = typer.Option(True, help="Interactive mode"),
     profile: Optional[str] = typer.Option(None, help="Profile to use"),
     format: str = typer.Option("table", help="Output format (table, json, yaml)"),
 ) -> None:
-    """Create a new connector."""
+    """Create a new connector for a tenant.
+
+    Example:
+        sagemcp connector create my-tenant --type github --name "GitHub Production"
+    """
     try:
+        client = get_client(profile)
+
+        # Get available connector types for validation
+        try:
+            available_types = client.get_available_connector_types()
+        except Exception as e:
+            print_error(f"Warning: Could not fetch available connector types: {e}")
+            available_types = []
+
         # Interactive mode if no type/name provided
         if interactive and (not connector_type or not name):
-            data = prompt_connector_create()
+            data = prompt_connector_create(available_types)
         else:
             if not connector_type or not name:
                 print_error("--type and --name are required in non-interactive mode")
+                sys.exit(2)
+
+            # Validate connector type
+            if available_types and connector_type not in available_types:
+                print_error(f"Invalid connector type: '{connector_type}'")
+                print_error(f"Available types: {', '.join(available_types)}")
+                print_info("Run: sagemcp connector types  # to see all available types")
                 sys.exit(2)
 
             data = {"connector_type": connector_type, "name": name}
             if description:
                 data["description"] = description
 
-        client = get_client(profile)
         connector = client.create_connector(tenant_slug, **data)
 
         print_success(f"Created connector: {connector['name']} ({connector['id']})")

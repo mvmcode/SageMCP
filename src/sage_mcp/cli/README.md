@@ -60,12 +60,78 @@ sagemcp connector types
 # List available OAuth providers
 sagemcp oauth providers
 
-# Start OAuth flow (opens browser)
+# Start OAuth flow (opens browser and handles callback automatically)
 sagemcp oauth authorize my-tenant github
+
+# Check OAuth status for a tenant
+sagemcp oauth status my-tenant
+
+# Check OAuth status for specific provider
+sagemcp oauth status my-tenant github
 
 # List OAuth credentials
 sagemcp oauth list my-tenant
+
+# Revoke OAuth credentials
+sagemcp oauth revoke my-tenant github
 ```
+
+**How OAuth Authorization Works:**
+
+The CLI uses a backend callback + polling approach (same as the web UI):
+
+1. Run `sagemcp oauth authorize <tenant> <provider>`
+2. CLI generates a unique session ID and opens your browser to the OAuth provider
+3. After you approve, the OAuth provider redirects to the backend callback URL
+4. The backend stores the OAuth result and shows you a success page
+5. Meanwhile, the CLI polls the backend for the result
+6. Once the result is retrieved, the CLI confirms success
+7. OAuth credentials are stored server-side and ready to use
+
+**Benefits:**
+- Uses fixed callback URL: `http://localhost:3001/api/v1/oauth/{tenant}/callback/{provider}`
+- No need to update OAuth app settings for different ports
+- Works consistently across all environments
+
+**Troubleshooting OAuth:**
+
+If authorization fails:
+- Verify OAuth credentials are configured in your `.env` file or tenant config
+- Ensure your OAuth app's callback URL is set correctly (see above)
+- Use `sagemcp oauth status <tenant> <provider>` to check credential status
+- Check backend logs for detailed error messages
+
+**Configuring OAuth Apps:**
+
+SageMCP supports two ways to configure OAuth credentials:
+
+**Option 1: Global Environment Variables (Simple)**
+```bash
+# In your .env file:
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+
+# Restart backend:
+docker-compose restart app
+```
+✅ Use this when: All tenants use the same OAuth app
+
+**Option 2: Tenant-Specific Configuration (Advanced)**
+```bash
+# Set OAuth config per tenant via CLI:
+sagemcp oauth config-set my-tenant github \
+  --client-id Iv1.abc123def456 \
+  --client-secret 1234567890abcdef
+
+# List configurations:
+sagemcp oauth config-list my-tenant
+
+# Delete configuration:
+sagemcp oauth config-delete my-tenant github
+```
+✅ Use this when: Each tenant needs its own OAuth app (multi-tenant SaaS)
+
+**Priority**: Tenant-specific config → Global environment variables
 
 ### 5. Test MCP Tools
 
@@ -127,8 +193,14 @@ sagemcp connector types                     # List available types
 ```bash
 sagemcp oauth providers                     # List OAuth providers
 sagemcp oauth list TENANT                   # List credentials
-sagemcp oauth authorize TENANT PROVIDER     # Start OAuth flow
+sagemcp oauth status TENANT [PROVIDER]      # Check OAuth authorization status
+sagemcp oauth authorize TENANT PROVIDER     # Start OAuth flow (with local callback)
 sagemcp oauth revoke TENANT PROVIDER        # Revoke credentials
+
+# OAuth Configuration (tenant-specific OAuth apps)
+sagemcp oauth config-set TENANT PROVIDER --client-id ID --client-secret SECRET
+sagemcp oauth config-list TENANT            # List OAuth configs
+sagemcp oauth config-delete TENANT PROVIDER # Delete OAuth config
 ```
 
 ### MCP Testing (`mcp`)

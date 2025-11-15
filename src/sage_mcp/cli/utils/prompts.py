@@ -73,27 +73,34 @@ def prompt_tenant_create() -> Dict[str, Any]:
     return data
 
 
-def prompt_connector_create() -> Dict[str, Any]:
+def prompt_connector_create(available_types: Optional[List[str]] = None) -> Dict[str, Any]:
     """Interactive prompt for creating a connector.
+
+    Args:
+        available_types: Optional list of available connector types from API
 
     Returns:
         Dictionary with connector data
     """
     console.print("\n[bold]Create New Connector[/bold]\n")
 
-    connector_types = [
-        "github",
-        "gitlab",
-        "slack",
-        "jira",
-        "google_docs",
-        "notion",
-        "confluence",
-        "linear",
-        "teams",
-        "discord",
-        "zoom",
-    ]
+    # Use provided types if available, otherwise use default list
+    if available_types:
+        connector_types = sorted(available_types)
+    else:
+        connector_types = [
+            "github",
+            "gitlab",
+            "slack",
+            "jira",
+            "google_docs",
+            "notion",
+            "confluence",
+            "linear",
+            "teams",
+            "discord",
+            "zoom",
+        ]
 
     connector_type = prompt_choice("Connector type", connector_types)
     name = prompt_text("Display name")
