@@ -6,7 +6,6 @@ import {
   Building2,
   Plug,
   Activity,
-  Settings,
   Plus,
   MoreVertical,
   Edit,
@@ -24,8 +23,10 @@ import toast from 'react-hot-toast'
 import { tenantsApi, connectorsApi } from '@/utils/api'
 import { cn } from '@/utils/cn'
 import ConnectorModal from '@/components/ConnectorModal'
+import ConnectorEditModal from '@/components/ConnectorEditModal'
 import OAuthManager from '@/components/OAuthManager'
 import ToolManagement from '@/components/ToolManagement'
+import TenantEditModal from '@/components/TenantEditModal'
 
 const TabButton = ({ 
   isActive, 
@@ -222,10 +223,60 @@ const ConnectionInfoModal = ({
   )
 }
 
+const DeleteConfirmDialog = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  connectorName,
+  isDeleting
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: () => void
+  connectorName: string
+  isDeleting: boolean
+}) => {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose} />
+        <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="px-6 py-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Connector</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <span className="font-medium">"{connectorName}"</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={onClose}
+                className="btn-secondary"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className="px-4 py-2 bg-error-600 text-white rounded-lg hover:bg-error-700 disabled:opacity-50"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: string }) => {
   const [showMenu, setShowMenu] = useState(false)
   const [showConnectionInfo, setShowConnectionInfo] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const queryClient = useQueryClient()
 
 
@@ -234,6 +285,7 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors', tenantSlug] })
       toast.success('Connector deleted successfully')
+      setShowDeleteDialog(false)
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to delete connector')
@@ -252,14 +304,29 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
   })
 
   const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete connector "${connector.name}"?`)) {
-      deleteMutation.mutate()
-    }
     setShowMenu(false)
+    setShowDeleteDialog(true)
+  }
+
+  const handleEdit = () => {
+    setShowMenu(false)
+    setShowEditModal(true)
+  }
+
+  const confirmDelete = () => {
+    deleteMutation.mutate()
   }
 
   return (
     <>
+      <DeleteConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={confirmDelete}
+        connectorName={connector.name}
+        isDeleting={deleteMutation.isPending}
+      />
+
       <ConnectionInfoModal
         isOpen={showConnectionInfo}
         onClose={() => setShowConnectionInfo(false)}
@@ -267,41 +334,23 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
         tenantSlug={tenantSlug}
       />
 
-      <div className="card">
-        <div className="card-content">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h4 className="font-medium text-gray-900">{connector.name}</h4>
-              <p className="text-sm text-gray-600 capitalize">{connector.connector_type}</p>
-              {connector.description && (
-                <p className="text-sm text-gray-500 mt-1">{connector.description}</p>
-              )}
+      <ConnectorEditModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        connector={connector}
+        tenantSlug={tenantSlug}
+      />
 
-              {/* Action Buttons */}
-              <div className="mt-3 flex items-center gap-3">
-                <button
-                  onClick={() => setShowConnectionInfo(true)}
-                  className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
-                >
-                  <Info className="h-4 w-4 mr-1" />
-                  Connection Info
-                </button>
-                <button
-                  onClick={() => setShowTools(!showTools)}
-                  className="inline-flex items-center text-sm text-purple-600 hover:text-purple-700 font-medium"
-                >
-                  <Wrench className="h-4 w-4 mr-1" />
-                  Manage Tools
-                  {showTools ? (
-                    <ChevronUp className="h-4 w-4 ml-1" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 ml-1" />
-                  )}
-                </button>
-              </div>
+      <div className="card h-full">
+        <div className="card-content h-full flex flex-col">
+          {/* Header with title and controls */}
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-medium text-gray-900 break-words">{connector.name}</h4>
+              <p className="text-sm text-gray-600 capitalize">{connector.connector_type}</p>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-shrink-0">
               <span className={cn(
                 'status-badge',
                 connector.is_enabled ? 'status-active' : 'status-inactive'
@@ -332,6 +381,7 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
                 {showMenu && (
                   <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
                     <button
+                      onClick={handleEdit}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
                       <Edit className="h-4 w-4 mr-2" />
@@ -339,16 +389,45 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
                     </button>
                     <button
                       onClick={handleDelete}
-                      disabled={deleteMutation.isPending}
-                      className="flex items-center w-full px-4 py-2 text-sm text-error-600 hover:bg-error-50 disabled:opacity-50"
+                      className="flex items-center w-full px-4 py-2 text-sm text-error-600 hover:bg-error-50"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+                      Delete
                     </button>
                   </div>
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Description - grows to fill space */}
+          <div className="flex-1 mb-3">
+            {connector.description && (
+              <p className="text-sm text-gray-500">{connector.description}</p>
+            )}
+          </div>
+
+          {/* Action Buttons - Always at bottom */}
+          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+            <button
+              onClick={() => setShowConnectionInfo(true)}
+              className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              <Info className="h-4 w-4 mr-1" />
+              Connection Info
+            </button>
+            <button
+              onClick={() => setShowTools(!showTools)}
+              className="inline-flex items-center text-sm text-purple-600 hover:text-purple-700 font-medium"
+            >
+              <Wrench className="h-4 w-4 mr-1" />
+              Manage Tools
+              {showTools ? (
+                <ChevronUp className="h-4 w-4 ml-1" />
+              ) : (
+                <ChevronDown className="h-4 w-4 ml-1" />
+              )}
+            </button>
           </div>
         </div>
 
@@ -371,6 +450,7 @@ export default function TenantDetail() {
   const { slug } = useParams<{ slug: string }>()
   const [activeTab, setActiveTab] = useState('overview')
   const [showConnectorModal, setShowConnectorModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
 
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ['tenant', slug],
@@ -441,13 +521,27 @@ export default function TenantDetail() {
                 {tenant.is_active ? 'Active' : 'Inactive'}
               </span>
             </div>
-            <p className="text-gray-600 font-mono">{tenant.slug}</p>
+            <div className="mt-1 space-y-1">
+              <p className="text-sm">
+                <span className="text-gray-500 font-medium">Slug:</span>{' '}
+                <span className="text-gray-700 font-mono">{tenant.slug}</span>
+              </p>
+              {tenant.description && (
+                <p className="text-sm">
+                  <span className="text-gray-500 font-medium">Description:</span>{' '}
+                  <span className="text-gray-700">{tenant.description}</span>
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button className="btn-secondary">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="btn-secondary"
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Tenant
           </button>
           <Link to={`/mcp-test?tenant=${tenant.slug}`} className="btn-primary">
             <Activity className="h-4 w-4 mr-2" />
@@ -455,15 +549,6 @@ export default function TenantDetail() {
           </Link>
         </div>
       </div>
-
-      {/* Description */}
-      {tenant.description && (
-        <div className="card">
-          <div className="card-content">
-            <p className="text-gray-700">{tenant.description}</p>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex space-x-2">
@@ -630,6 +715,14 @@ export default function TenantDetail() {
         onClose={() => setShowConnectorModal(false)}
         preselectedTenant={tenant?.slug}
       />
+
+      {tenant && (
+        <TenantEditModal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          tenant={tenant}
+        />
+      )}
     </div>
   )
 }
