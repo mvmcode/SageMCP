@@ -14,6 +14,7 @@ export interface TenantCreate {
   name: string
   description?: string
   contact_email?: string
+  is_active?: boolean
 }
 
 export interface Connector {
