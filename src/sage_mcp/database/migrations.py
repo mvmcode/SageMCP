@@ -183,7 +183,7 @@ async def upgrade_add_runtime_type_values(engine: AsyncEngine = None):
             # Create the enum type with all values
             values_str = "', '".join(runtime_values)
             await conn.execute(text(
-                f"CREATE TYPE connectorruntimetype AS ENUM ('{values_str}')"
+                "CREATE TYPE connectorruntimetype AS ENUM ('" + values_str + "')"
             ))
             print("✓ Created connectorruntimetype enum with all values")
             return
@@ -232,7 +232,7 @@ async def upgrade_add_process_status_values(engine: AsyncEngine = None):
             # Create the enum type with all values
             values_str = "', '".join(status_values)
             await conn.execute(text(
-                f"CREATE TYPE processstatus AS ENUM ('{values_str}')"
+                "CREATE TYPE processstatus AS ENUM ('" + values_str + "')"
             ))
             print("✓ Created processstatus enum with all values")
             return
