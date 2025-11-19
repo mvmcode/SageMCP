@@ -10,10 +10,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.connection import get_db_session
-from ..models.connector import Connector, ConnectorType
+from ..models.connector import Connector, ConnectorType, ConnectorRuntimeType
 from ..models.connector_tool_state import ConnectorToolState
+from ..models.mcp_process import MCPProcess
 from ..models.tenant import Tenant
 from ..connectors.registry import connector_registry
+from ..runtime import process_manager
 
 router = APIRouter()
 
@@ -44,6 +46,11 @@ class ConnectorCreate(BaseModel):
     name: str
     description: Optional[str] = None
     configuration: Optional[Dict[str, Any]] = None
+    # Runtime configuration for external MCP servers
+    runtime_type: ConnectorRuntimeType = ConnectorRuntimeType.NATIVE
+    runtime_command: Optional[str] = None  # JSON array as string, e.g., '["npx", "@modelcontextprotocol/server-github"]'
+    runtime_env: Optional[Dict[str, Any]] = None
+    package_path: Optional[str] = None
 
 
 class ConnectorResponse(BaseModel):
@@ -56,6 +63,11 @@ class ConnectorResponse(BaseModel):
     tenant_id: UUID
     created_at: datetime
     updated_at: datetime
+    # Runtime configuration
+    runtime_type: ConnectorRuntimeType
+    runtime_command: Optional[str]
+    runtime_env: Optional[Dict[str, Any]]
+    package_path: Optional[str]
 
     class Config:
         from_attributes = True
@@ -88,6 +100,22 @@ class BulkToolUpdateRequest(BaseModel):
 class BulkToolUpdatesRequest(BaseModel):
     """Request model for multiple bulk tool updates."""
     updates: List[BulkToolUpdateRequest]
+
+
+class ProcessStatusResponse(BaseModel):
+    """Response model for external MCP process status."""
+    connector_id: UUID
+    tenant_id: UUID
+    pid: Optional[int]
+    runtime_type: str
+    status: str  # ProcessStatus enum value
+    started_at: datetime
+    last_health_check: Optional[datetime]
+    error_message: Optional[str]
+    restart_count: int
+
+    class Config:
+        from_attributes = True
 
 
 async def populate_tools_for_connector(connector: Connector, session: AsyncSession):
@@ -213,17 +241,19 @@ async def create_connector(
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     # Check if connector of this type already exists for this tenant
-    existing_connector = await session.execute(
-        select(Connector).where(
-            Connector.tenant_id == tenant.id,
-            Connector.connector_type == connector_data.connector_type
+    # Only enforce uniqueness for built-in connectors, not CUSTOM connectors
+    if connector_data.connector_type != ConnectorType.CUSTOM:
+        existing_connector = await session.execute(
+            select(Connector).where(
+                Connector.tenant_id == tenant.id,
+                Connector.connector_type == connector_data.connector_type.value
+            )
         )
-    )
-    if existing_connector.scalar_one_or_none():
-        raise HTTPException(
-            status_code=400,
-            detail=f"A {connector_data.connector_type.value} connector already exists for this tenant. Only one connector per type is allowed."
-        )
+        if existing_connector.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail=f"A {connector_data.connector_type.value} connector already exists for this tenant. Only one connector per type is allowed."
+            )
 
     # Create connector
     connector = Connector(
@@ -231,7 +261,11 @@ async def create_connector(
         connector_type=connector_data.connector_type,
         name=connector_data.name,
         description=connector_data.description,
-        configuration=connector_data.configuration
+        configuration=connector_data.configuration,
+        runtime_type=connector_data.runtime_type,
+        runtime_command=connector_data.runtime_command,
+        runtime_env=connector_data.runtime_env,
+        package_path=connector_data.package_path
     )
 
     session.add(connector)
@@ -945,4 +979,137 @@ async def sync_connector_tools(
         "removed": removed_tools,
         "unchanged": unchanged_count,
         "summary": f"Added {len(added_tools)} tools, removed {len(removed_tools)} tools, {unchanged_count} unchanged"
+    }
+
+
+# =====================================================
+# External MCP Process Management Endpoints
+# =====================================================
+
+@router.get(
+    "/connectors/{connector_id}/process/status",
+    response_model=Optional[ProcessStatusResponse]
+)
+async def get_process_status(
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get the status of an external MCP server process."""
+    from sqlalchemy import select
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(Connector.id == connector_id)
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Check if this is an external MCP connector
+    if connector.runtime_type == ConnectorRuntimeType.NATIVE:
+        raise HTTPException(
+            status_code=400,
+            detail="This connector is a native connector, not an external MCP server"
+        )
+
+    # Get process status from database
+    process_result = await session.execute(
+        select(MCPProcess).where(
+            MCPProcess.connector_id == connector.id,
+            MCPProcess.tenant_id == connector.tenant_id
+        )
+    )
+    process = process_result.scalar_one_or_none()
+
+    if not process:
+        return None
+
+    return ProcessStatusResponse(
+        connector_id=process.connector_id,
+        tenant_id=process.tenant_id,
+        pid=process.pid,
+        runtime_type=process.runtime_type,
+        status=process.status.value,
+        started_at=process.started_at,
+        last_health_check=process.last_health_check,
+        error_message=process.error_message,
+        restart_count=process.restart_count
+    )
+
+
+@router.post("/connectors/{connector_id}/process/restart")
+async def restart_process(
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Restart an external MCP server process."""
+    from sqlalchemy import select
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(Connector.id == connector_id)
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Check if this is an external MCP connector
+    if connector.runtime_type == ConnectorRuntimeType.NATIVE:
+        raise HTTPException(
+            status_code=400,
+            detail="This connector is a native connector, not an external MCP server"
+        )
+
+    # Terminate the existing process
+    try:
+        await process_manager.terminate(str(connector.tenant_id), str(connector.id))
+    except Exception as e:
+        print(f"Warning: Failed to terminate process: {e}")
+
+    # Process will be restarted on next request via process_manager.get_or_create()
+    return {
+        "success": True,
+        "message": f"Process restart initiated for connector {connector.name}. "
+                   "It will start on the next tool request."
+    }
+
+
+@router.delete("/connectors/{connector_id}/process")
+async def terminate_process(
+    connector_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Terminate an external MCP server process."""
+    from sqlalchemy import select
+
+    # Get connector
+    connector_result = await session.execute(
+        select(Connector).where(Connector.id == connector_id)
+    )
+    connector = connector_result.scalar_one_or_none()
+
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Check if this is an external MCP connector
+    if connector.runtime_type == ConnectorRuntimeType.NATIVE:
+        raise HTTPException(
+            status_code=400,
+            detail="This connector is a native connector, not an external MCP server"
+        )
+
+    # Terminate the process
+    try:
+        await process_manager.terminate(str(connector.tenant_id), str(connector.id))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to terminate process: {str(e)}"
+        )
+
+    return {
+        "success": True,
+        "message": f"Process terminated for connector {connector.name}"
     }

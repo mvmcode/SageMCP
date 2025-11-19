@@ -197,7 +197,8 @@ class MCPServer:
         """Get tools for a specific connector, filtered by enabled state."""
         print(f"DEBUG: Getting tools for connector {connector.name} ({connector.connector_type.value})")
 
-        connector_plugin = connector_registry.get_connector(connector.connector_type)
+        # Use new routing method that supports both native and external connectors
+        connector_plugin = connector_registry.get_connector_for_config(connector)
         if not connector_plugin:
             print(f"DEBUG: No connector plugin found for {connector.connector_type.value}")
             return []
@@ -250,7 +251,8 @@ class MCPServer:
 
     async def _get_connector_resources(self, connector: Connector) -> List[types.Resource]:
         """Get resources for a specific connector."""
-        connector_plugin = connector_registry.get_connector(connector.connector_type)
+        # Use new routing method that supports both native and external connectors
+        connector_plugin = connector_registry.get_connector_for_config(connector)
         if not connector_plugin:
             return []
 
@@ -267,7 +269,8 @@ class MCPServer:
 
     async def _execute_tool(self, connector: Connector, action: str, arguments: Dict[str, Any]) -> str:
         """Execute a tool action for a connector."""
-        connector_plugin = connector_registry.get_connector(connector.connector_type)
+        # Use new routing method that supports both native and external connectors
+        connector_plugin = connector_registry.get_connector_for_config(connector)
         if not connector_plugin:
             return f"Connector plugin not found: {connector.connector_type.value}"
 
@@ -283,7 +286,8 @@ class MCPServer:
 
     async def _read_connector_resource(self, connector: Connector, path: str) -> str:
         """Read a resource from a connector."""
-        connector_plugin = connector_registry.get_connector(connector.connector_type)
+        # Use new routing method that supports both native and external connectors
+        connector_plugin = connector_registry.get_connector_for_config(connector)
         if not connector_plugin:
             return f"Connector plugin not found: {connector.connector_type.value}"
 

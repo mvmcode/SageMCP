@@ -22,17 +22,27 @@ export interface Connector {
   name: string
   description?: string
   is_enabled: boolean
-  configuration?: string
+  configuration?: any
   tenant_id: string
   created_at?: string
   updated_at?: string
+  // Runtime configuration for external MCP servers
+  runtime_type: ConnectorRuntimeType
+  runtime_command?: string
+  runtime_env?: Record<string, string>
+  package_path?: string
 }
 
 export interface ConnectorCreate {
   connector_type: ConnectorType
   name: string
   description?: string
-  configuration?: string
+  configuration?: any
+  // Runtime configuration for external MCP servers
+  runtime_type?: ConnectorRuntimeType
+  runtime_command?: string
+  runtime_env?: Record<string, string>
+  package_path?: string
 }
 
 export enum ConnectorType {
@@ -46,7 +56,36 @@ export enum ConnectorType {
   SLACK = 'slack',
   TEAMS = 'teams',
   DISCORD = 'discord',
-  ZOOM = 'zoom'
+  ZOOM = 'zoom',
+  CUSTOM = 'custom'  // For external MCP servers
+}
+
+export enum ConnectorRuntimeType {
+  NATIVE = 'native',
+  EXTERNAL_PYTHON = 'external_python',
+  EXTERNAL_NODEJS = 'external_nodejs',
+  EXTERNAL_GO = 'external_go',
+  EXTERNAL_CUSTOM = 'external_custom'
+}
+
+export enum ProcessStatus {
+  STARTING = 'starting',
+  RUNNING = 'running',
+  STOPPED = 'stopped',
+  ERROR = 'error',
+  RESTARTING = 'restarting'
+}
+
+export interface MCPProcessStatus {
+  connector_id: string
+  tenant_id: string
+  pid?: number
+  runtime_type: string
+  status: ProcessStatus
+  started_at: string
+  last_health_check?: string
+  error_message?: string
+  restart_count: number
 }
 
 export interface MCPServerInfo {

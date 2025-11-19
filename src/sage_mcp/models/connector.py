@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator, UniqueConstraint
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, TypeDecorator
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,26 +39,37 @@ if TYPE_CHECKING:
 class ConnectorType(enum.Enum):
     """Supported connector types."""
 
-    GITHUB = "github"
-    GITLAB = "gitlab"
-    GOOGLE_DOCS = "google_docs"
-    NOTION = "notion"
-    CONFLUENCE = "confluence"
-    JIRA = "jira"
-    LINEAR = "linear"
-    SLACK = "slack"
-    TEAMS = "teams"
-    DISCORD = "discord"
-    ZOOM = "zoom"
+    GITHUB = "GITHUB"
+    GITLAB = "GITLAB"
+    GOOGLE_DOCS = "GOOGLE_DOCS"
+    NOTION = "NOTION"
+    CONFLUENCE = "CONFLUENCE"
+    JIRA = "JIRA"
+    LINEAR = "LINEAR"
+    SLACK = "SLACK"
+    TEAMS = "TEAMS"
+    DISCORD = "DISCORD"
+    ZOOM = "ZOOM"
+    CUSTOM = "custom"  # For external MCP servers (lowercase for new)
+
+
+class ConnectorRuntimeType(enum.Enum):
+    """Runtime execution mode for connectors."""
+
+    # In-process native Python connectors (current)
+    NATIVE = "native"
+
+    # External MCP servers via stdio
+    EXTERNAL_PYTHON = "external_python"    # Python MCP SDK server
+    EXTERNAL_NODEJS = "external_nodejs"    # Node.js @modelcontextprotocol/sdk
+    EXTERNAL_GO = "external_go"            # Go MCP implementation
+    EXTERNAL_CUSTOM = "external_custom"    # Any binary that speaks MCP over stdio
 
 
 class Connector(Base):
     """Connector configuration for tenants."""
 
     __tablename__ = "connectors"
-    __table_args__ = (
-        UniqueConstraint('tenant_id', 'connector_type', name='uq_tenant_connector_type'),
-    )
 
     # Foreign key to tenant
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -70,7 +81,13 @@ class Connector(Base):
 
     # Connector type
     connector_type: Mapped[ConnectorType] = mapped_column(
-        Enum(ConnectorType),
+        Enum(
+            ConnectorType,
+            name="connectortype",
+            create_constraint=False,
+            native_enum=False,
+            values_callable=lambda x: [e.value for e in x]
+        ),
         nullable=False,
         index=True
     )
@@ -86,6 +103,30 @@ class Connector(Base):
 
     # Connector-specific configuration (JSON)
     configuration: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONType, nullable=True)
+
+    # Runtime configuration for external MCP servers
+    runtime_type: Mapped[ConnectorRuntimeType] = mapped_column(
+        Enum(
+            ConnectorRuntimeType,
+            name="connectorruntimetype",
+            create_constraint=False,
+            native_enum=False,
+            values_callable=lambda x: [e.value for e in x]
+        ),
+        nullable=False,
+        default=ConnectorRuntimeType.NATIVE,
+        server_default="native",
+        index=True
+    )
+
+    # Command to execute for external MCP servers (JSON array, e.g., ["npx", "@modelcontextprotocol/server-github"])
+    runtime_command: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Environment variables for external MCP servers (JSON object)
+    runtime_env: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONType, nullable=True)
+
+    # Working directory / package path for external MCP servers
+    package_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="connectors")

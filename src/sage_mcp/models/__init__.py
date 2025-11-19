@@ -4,8 +4,9 @@ from .base import Base
 from .tenant import Tenant
 from .oauth_credential import OAuthCredential
 from .oauth_config import OAuthConfig
-from .connector import Connector, ConnectorType
+from .connector import Connector, ConnectorType, ConnectorRuntimeType
 from .connector_tool_state import ConnectorToolState
+from .mcp_process import MCPProcess, ProcessStatus
 
 __all__ = [
     "Base",
@@ -14,5 +15,8 @@ __all__ = [
     "OAuthConfig",
     "Connector",
     "ConnectorType",
+    "ConnectorRuntimeType",
     "ConnectorToolState",
+    "MCPProcess",
+    "ProcessStatus",
 ]

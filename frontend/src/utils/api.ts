@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { Tenant, TenantCreate, Connector, ConnectorCreate, MCPServerInfo, OAuthProvider, OAuthCredential, OAuthConfig } from '@/types'
+import { Tenant, TenantCreate, Connector, ConnectorCreate, MCPServerInfo, OAuthProvider, OAuthCredential, OAuthConfig, MCPProcessStatus } from '@/types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -162,7 +162,7 @@ export const mcpApi = {
 
 export const oauthApi = {
   listProviders: () => api.get<OAuthProvider[]>('/oauth/providers'),
-  listCredentials: (tenantSlug: string) => 
+  listCredentials: (tenantSlug: string) =>
     api.get<OAuthCredential[]>(`/oauth/${tenantSlug}/auth`),
   initiateOAuth: (tenantSlug: string, provider: string) => {
     // This should open a new window for OAuth flow
@@ -172,15 +172,24 @@ export const oauthApi = {
     console.log('OAuth popup opened:', popup)
     return popup
   },
-  revokeCredential: (tenantSlug: string, provider: string) => 
+  revokeCredential: (tenantSlug: string, provider: string) =>
     api.delete(`/oauth/${tenantSlug}/auth/${provider}`),
   // OAuth Configuration Management
-  listConfigs: (tenantSlug: string) => 
+  listConfigs: (tenantSlug: string) =>
     api.get<OAuthConfig[]>(`/oauth/${tenantSlug}/config`),
-  createConfig: (tenantSlug: string, config: { provider: string; client_id: string; client_secret: string }) => 
+  createConfig: (tenantSlug: string, config: { provider: string; client_id: string; client_secret: string }) =>
     api.post<OAuthConfig>(`/oauth/${tenantSlug}/config`, config),
-  deleteConfig: (tenantSlug: string, provider: string) => 
+  deleteConfig: (tenantSlug: string, provider: string) =>
     api.delete(`/oauth/${tenantSlug}/config/${provider}`),
+}
+
+export const processApi = {
+  getStatus: (connectorId: string) =>
+    api.get<MCPProcessStatus | null>(`/admin/connectors/${connectorId}/process/status`),
+  restart: (connectorId: string) =>
+    api.post(`/admin/connectors/${connectorId}/process/restart`),
+  terminate: (connectorId: string) =>
+    api.delete(`/admin/connectors/${connectorId}/process`),
 }
 
 export const healthApi = {
