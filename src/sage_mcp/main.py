@@ -9,7 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router as api_router
 from .config import get_settings
 from .database.connection import db_manager
-from .database.migrations import create_tables
+from .database.migrations import (
+    create_tables,
+    upgrade_add_external_mcp_runtime,
+    upgrade_add_custom_connector_type,
+    upgrade_add_runtime_type_values,
+    upgrade_add_process_status_values,
+    upgrade_remove_connector_unique_constraint,
+)
 
 # Import connectors to register them
 from .connectors import github  # noqa
@@ -27,6 +34,13 @@ async def lifespan(app: FastAPI):
     # Create tables if they don't exist
     await create_tables()
 
+    # Run migrations
+    await upgrade_add_external_mcp_runtime()
+    await upgrade_add_custom_connector_type()
+    await upgrade_add_runtime_type_values()
+    await upgrade_add_process_status_values()
+    await upgrade_remove_connector_unique_constraint()
+
     # Warm up HTTP client (creates connection pool)
     from .connectors.http_client import get_http_client
     get_http_client()
@@ -39,11 +53,21 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    print("🛑 Shutting down Sage MCP...")
+
+    # Terminate all external MCP processes
+    from .runtime import process_manager
+    await process_manager.terminate_all()
+    print("✓ All external MCP processes terminated")
+
+    # Close database connections
     await db_manager.close()
+    print("✓ Database connections closed")
 
     # Close HTTP client and cleanup connections
     from .connectors.http_client import close_http_client
     await close_http_client()
+    print("✓ HTTP client closed")
 
     print("👋 Sage MCP shutdown complete")
 

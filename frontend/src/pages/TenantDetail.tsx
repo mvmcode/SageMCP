@@ -23,6 +23,8 @@ import toast from 'react-hot-toast'
 import { tenantsApi, connectorsApi } from '@/utils/api'
 import { cn } from '@/utils/cn'
 import ConnectorModal from '@/components/ConnectorModal'
+import ExternalMCPModal from '@/components/ExternalMCPModal'
+import ProcessStatus from '@/components/ProcessStatus'
 import ConnectorEditModal from '@/components/ConnectorEditModal'
 import OAuthManager from '@/components/OAuthManager'
 import ToolManagement from '@/components/ToolManagement'
@@ -341,6 +343,37 @@ const ConnectorCard = ({ connector, tenantSlug }: { connector: any, tenantSlug: 
         tenantSlug={tenantSlug}
       />
 
+              {/* Process Status for External MCP Servers */}
+              <div className="mt-3">
+                <ProcessStatus
+                  connectorId={connector.id}
+                  runtimeType={connector.runtime_type}
+                  showControls={true}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={() => setShowConnectionInfo(true)}
+                  className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  <Info className="h-4 w-4 mr-1" />
+                  Connection Info
+                </button>
+                <button
+                  onClick={() => setShowTools(!showTools)}
+                  className="inline-flex items-center text-sm text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  <Wrench className="h-4 w-4 mr-1" />
+                  Manage Tools
+                  {showTools ? (
+                    <ChevronUp className="h-4 w-4 ml-1" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  )}
+                </button>
+              </div>
       <div className="card h-full">
         <div className="card-content h-full flex flex-col">
           {/* Header with title and controls */}
@@ -450,6 +483,7 @@ export default function TenantDetail() {
   const { slug } = useParams<{ slug: string }>()
   const [activeTab, setActiveTab] = useState('overview')
   const [showConnectorModal, setShowConnectorModal] = useState(false)
+  const [showExternalMCPModal, setShowExternalMCPModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
 
   const { data: tenant, isLoading: tenantLoading } = useQuery({
@@ -643,16 +677,28 @@ export default function TenantDetail() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Connectors</h3>
-            <button 
-              onClick={() => {
-                console.log('Add Connector button clicked (tenant detail)!')
-                setShowConnectorModal(true)
-              }}
-              className="btn-primary"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Connector
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  console.log('Add Connector button clicked (tenant detail)!')
+                  setShowConnectorModal(true)
+                }}
+                className="btn-secondary"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Native Connector
+              </button>
+              <button
+                onClick={() => {
+                  console.log('Add External MCP Server button clicked!')
+                  setShowExternalMCPModal(true)
+                }}
+                className="btn-primary"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add External MCP Server
+              </button>
+            </div>
           </div>
 
           {connectors.length > 0 ? (
@@ -670,16 +716,28 @@ export default function TenantDetail() {
               <Plug className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No connectors configured</h3>
               <p className="text-gray-600 mb-4">Add your first connector to get started</p>
-              <button 
-                onClick={() => {
-                  console.log('Add Connector button clicked (tenant detail empty state)!')
-                  setShowConnectorModal(true)
-                }}
-                className="btn-primary"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Connector
-              </button>
+              <div className="flex items-center justify-center space-x-3">
+                <button
+                  onClick={() => {
+                    console.log('Add Connector button clicked (tenant detail empty state)!')
+                    setShowConnectorModal(true)
+                  }}
+                  className="btn-secondary"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Native Connector
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('Add External MCP Server button clicked (empty state)!')
+                    setShowExternalMCPModal(true)
+                  }}
+                  className="btn-primary"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add External MCP Server
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -716,6 +774,11 @@ export default function TenantDetail() {
         preselectedTenant={tenant?.slug}
       />
 
+      <ExternalMCPModal
+        isOpen={showExternalMCPModal}
+        onClose={() => setShowExternalMCPModal(false)}
+        preselectedTenant={tenant?.slug}
+      />
       {tenant && (
         <TenantEditModal
           isOpen={showEditModal}
