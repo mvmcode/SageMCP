@@ -475,3 +475,165 @@ async def list_discovery_jobs(
     except Exception as e:
         logger.error(f"Error listing discovery jobs: {e}")
         raise HTTPException(status_code=500, detail="Failed to list jobs")
+
+
+# Installation Endpoints
+
+class InstallServerRequest(BaseModel):
+    """Request model for installing a server."""
+
+    tenant_id: str = Field(..., description="Tenant ID")
+    config_overrides: Optional[dict] = Field(None, description="Optional configuration overrides")
+
+
+class InstallationResponse(BaseModel):
+    """Response model for installation."""
+
+    success: bool
+    connector_id: Optional[str] = None
+    message: str
+
+
+class InstallationStatusResponse(BaseModel):
+    """Response model for installation status."""
+
+    connector_id: str
+    name: str
+    status: str
+    container_status: str
+    container_ip: Optional[str] = None
+    installed_version: Optional[str] = None
+    installed_at: Optional[str] = None
+    last_health_check: Optional[str] = None
+
+
+@router.post("/servers/{registry_id}/install", response_model=InstallationResponse)
+async def install_server(
+    registry_id: UUID,
+    request: InstallServerRequest,
+    background_tasks: BackgroundTasks
+):
+    """Install MCP server from registry to tenant.
+
+    This endpoint triggers the installation workflow:
+    1. Builds Docker image (if needed)
+    2. Creates connector in database
+    3. Deploys container/pod
+    4. Creates installation record
+
+    Args:
+        registry_id: Registry server ID
+        request: Installation request with tenant_id and config
+        background_tasks: FastAPI background tasks
+
+    Returns:
+        Installation response with connector_id or error
+    """
+    try:
+        from ..orchestration.installer import ServerInstaller
+
+        installer = ServerInstaller()
+
+        # Run installation in background
+        from uuid import UUID as ParseUUID
+        tenant_uuid = ParseUUID(request.tenant_id)
+
+        success, result = await installer.install_server(
+            registry_id=registry_id,
+            tenant_id=tenant_uuid,
+            config_overrides=request.config_overrides
+        )
+
+        if success:
+            logger.info(f"Server installation successful: {result}")
+            return InstallationResponse(
+                success=True,
+                connector_id=result,
+                message="Server installed successfully"
+            )
+        else:
+            logger.error(f"Server installation failed: {result}")
+            return InstallationResponse(
+                success=False,
+                message=f"Installation failed: {result}"
+            )
+
+    except Exception as e:
+        logger.error(f"Error installing server: {e}")
+        raise HTTPException(status_code=500, detail=f"Installation error: {str(e)}")
+
+
+@router.delete("/installations/{connector_id}")
+async def uninstall_server(
+    connector_id: UUID,
+    tenant_id: str = Query(..., description="Tenant ID")
+):
+    """Uninstall MCP server.
+
+    Args:
+        connector_id: Connector ID
+        tenant_id: Tenant ID
+
+    Returns:
+        Uninstallation response
+    """
+    try:
+        from ..orchestration.installer import ServerInstaller
+        from uuid import UUID as ParseUUID
+
+        installer = ServerInstaller()
+        tenant_uuid = ParseUUID(tenant_id)
+
+        success, message = await installer.uninstall_server(
+            connector_id=connector_id,
+            tenant_id=tenant_uuid
+        )
+
+        if success:
+            return {"success": True, "message": message}
+        else:
+            raise HTTPException(status_code=400, detail=message)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uninstalling server: {e}")
+        raise HTTPException(status_code=500, detail=f"Uninstallation error: {str(e)}")
+
+
+@router.get("/installations/{connector_id}/status", response_model=InstallationStatusResponse)
+async def get_installation_status(
+    connector_id: UUID,
+    tenant_id: str = Query(..., description="Tenant ID")
+):
+    """Get installation status.
+
+    Args:
+        connector_id: Connector ID
+        tenant_id: Tenant ID
+
+    Returns:
+        Installation status
+    """
+    try:
+        from ..orchestration.installer import ServerInstaller
+        from uuid import UUID as ParseUUID
+
+        installer = ServerInstaller()
+        tenant_uuid = ParseUUID(tenant_id)
+
+        status = await installer.get_installation_status(
+            connector_id=connector_id,
+            tenant_id=tenant_uuid
+        )
+
+        if not status:
+            raise HTTPException(status_code=404, detail="Installation not found")
+
+        return InstallationStatusResponse(**status)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching installation status: {e}")
+        raise HTTPException(status_code=500, detail=f"Status fetch error: {str(e)}")
