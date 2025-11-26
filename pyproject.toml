@@ -36,6 +36,10 @@ dependencies = [
     "redis>=5.0.0",
     "mcp>=1.0.0",
     "greenlet>=3.0.0",
+    # Orchestration dependencies
+    "aiodocker>=0.21.0",
+    "kubernetes>=28.1.0",
+    "kubernetes-asyncio>=31.1.0",
 ]
 
 [project.optional-dependencies]
